@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
@@ -14,6 +14,7 @@
    Déclinaisons de l'orange : 100 / 75 / 50 / 25 %
    ========================================================== */
 :root{
+  color-scheme:light;   /* l'application est conçue en clair : on neutralise le mode sombre automatique de Bulma */
   --orange:#F59C00; --orange-75:#F8B540; --orange-50:#FACE80; --orange-25:#FDE6BF; --orange-dark:#D08600;
   --ink:#33291A; --ink-soft:rgba(51,41,26,.55);
   --hdr-bg:#FFFBF4; --page-bg:#F7F4EE; --card:#FFFFFF; --border:rgba(51,41,26,.12);
@@ -59,6 +60,8 @@ body{color:var(--ink);min-height:100vh;font-family:'Inter',sans-serif;font-size:
 .modal-card.wide{width:min(1100px,96vw);}
 .modal-card-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.04em;font-size:22px;}
 .modal-card-head{border-bottom:3px solid var(--orange);}
+.modal-card-foot{gap:10px;}
+.modal-card-foot .button{margin:0 !important;}
 .button.is-primary{background:var(--orange);color:#fff;border-color:transparent;font-weight:700;}
 .button.is-primary:hover,.button.is-primary:focus{background:var(--orange-dark);color:#fff;}
 .button.is-light-orange{background:var(--orange-25);color:var(--orange-dark);border-color:var(--orange-50);font-weight:700;}
