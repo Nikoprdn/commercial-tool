@@ -73,6 +73,9 @@ body{color:var(--ink);min-height:100vh;font-family:'Inter',sans-serif;font-size:
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:22px;}
 .kpi{background:var(--card);border:1px solid var(--border);border-top:3px solid var(--orange);border-radius:8px;padding:14px 16px;}
 .kpi.danger{border-top-color:var(--danger);}
+.kpis.k6{grid-template-columns:repeat(6,minmax(0,1fr));}
+.kpis.k6 .kpi-v{font-size:25px;}
+@media(max-width:1000px){.kpis.k6{grid-template-columns:repeat(2,minmax(0,1fr));}}
 .kpi-l{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);}
 .kpi-v{font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:800;line-height:1.1;margin-top:2px;}
 .kpi-s{font-size:11.5px;color:var(--ink-soft);}
@@ -113,6 +116,27 @@ body{color:var(--ink);min-height:100vh;font-family:'Inter',sans-serif;font-size:
 .empty{padding:26px;text-align:center;color:var(--ink-soft);border:2px dashed var(--border);border-radius:8px;}
 .toast{position:fixed;right:20px;bottom:20px;z-index:500;max-width:380px;box-shadow:0 6px 20px rgba(0,0,0,.18);}
 .help{font-size:11.5px;}
+/* Graphiques */
+.chart svg{width:100%;height:auto;display:block;}
+.chart text{font-family:'Inter',sans-serif;font-size:11px;fill:var(--ink-soft);}
+.chart text.endlbl{fill:var(--ink);font-weight:700;}
+.hit{fill:transparent;}
+.hitg:hover .hit{fill:rgba(245,156,0,.09);}
+.cross{stroke:var(--ink-soft);stroke-width:1;opacity:0;}
+.hitg:hover .cross{opacity:.7;}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--ink);margin-bottom:6px;}
+.lg{display:inline-flex;align-items:center;gap:6px;}
+.lg-sw{width:10px;height:10px;border-radius:2px;display:inline-block;}
+.lg-line{width:16px;height:0;border-top:3px solid;display:inline-block;border-radius:2px;}
+.chart-table{margin-top:6px;font-size:12px;}
+.chart-table summary{cursor:pointer;color:var(--ink-soft);font-size:11.5px;}
+#tip{position:fixed;z-index:600;pointer-events:none;background:#fff;border:1px solid var(--border);box-shadow:0 6px 18px rgba(0,0,0,.14);border-radius:6px;padding:8px 10px;font-size:12px;display:none;min-width:170px;}
+.tip-t{font-weight:800;margin-bottom:5px;}
+.tip-r{display:flex;align-items:center;gap:8px;line-height:1.7;}
+.tip-r .tip-n{flex:1;color:var(--ink-soft);}
+.tip-k{width:12px;height:0;border-top:3px solid;display:inline-block;flex-shrink:0;}
+.dl.up{color:var(--ok);font-weight:700;}
+.dl.dn{color:var(--danger);font-weight:700;}
 </style>
 </head>
 <body>
@@ -131,6 +155,7 @@ body{color:var(--ink);min-height:100vh;font-family:'Inter',sans-serif;font-size:
   <nav class="hdr-nav">
     <button class="nav-btn active" data-page="accueil"><span class="nav-btn-ico">&#127968;</span><span class="nav-btn-txt">Accueil</span></button>
     <button class="nav-btn" data-page="contrats"><span class="nav-btn-ico">&#128196;</span><span class="nav-btn-txt">Contrats</span></button>
+    <button class="nav-btn" data-page="clients"><span class="nav-btn-ico">&#128101;</span><span class="nav-btn-txt">Clients</span></button>
     <button class="nav-btn" data-page="campagnes"><span class="nav-btn-ico">&#128197;</span><span class="nav-btn-txt">Campagnes</span></button>
     <button class="nav-btn" data-page="encaissements"><span class="nav-btn-ico">&#128182;</span><span class="nav-btn-txt">Encaissements</span></button>
     <button class="nav-btn" data-page="ca" id="nav-ca"><span class="nav-btn-ico">&#128200;</span><span class="nav-btn-txt">CA &amp; Clôture</span></button>
@@ -154,6 +179,7 @@ body{color:var(--ink);min-height:100vh;font-family:'Inter',sans-serif;font-size:
 <main class="container is-fluid">
   <section id="accueil" class="page active"></section>
   <section id="contrats" class="page"></section>
+  <section id="clients" class="page"></section>
   <section id="campagnes" class="page"></section>
   <section id="encaissements" class="page"></section>
   <section id="ca" class="page"></section>
@@ -202,7 +228,7 @@ const Store = {
       ],
       sellers: [{ id: 's1', name: 'Radio Monaco (direct)', rate: 0 }, { id: 's2', name: 'Commercial 1', rate: 10 }],
       contracts: [], campaigns: [], bookings: [], invoices: [],
-      closures: {}, odp: {}, settings: { tva: 20, payDelay: 30 }, log: []
+      closures: {}, clientInfo: {}, odp: {}, settings: { tva: 20, payDelay: 30 }, log: []
     };
   },
   load() {
@@ -300,11 +326,11 @@ const commPaid = i => round2(sum(i.commPaid || [], p => p.amount));
 const commDue = i => round2(commAcquired(i) - commPaid(i));
 
 /* ---- Diffusion : répartition d'une campagne au prorata des jours ---- */
-function allocByMonth(camp) {
+function allocByMonth(camp, field = 'amountHT') {
   const out = {};
   if (!camp.start || !camp.end || camp.end < camp.start) return out;
   const s = new Date(camp.start + 'T00:00:00'), e = new Date(camp.end + 'T00:00:00');
-  const days = Math.round((e - s) / 864e5) + 1, per = (+camp.amountHT || 0) / days;
+  const days = Math.round((e - s) / 864e5) + 1, per = (+camp[field] || 0) / days;
   for (let i = 0; i < days; i++) {
     const d = new Date(s); d.setDate(s.getDate() + i);
     const k = d.getFullYear() + '-' + p2(d.getMonth() + 1);
@@ -325,23 +351,33 @@ function caSigneYear(y) {
   return rows;
 }
 
-/* ---- CA DIFFUSÉ = facturé du mois + « à rajouter » ---- */
+/* ---- Diffusion d'un contrat mois par mois : facturé (b), diffusé réel (d), à rajouter (adj) ---- */
+function contractDiffMonths(c) {
+  const camps = campsOf(c), billed = {}, diff = {}, out = {};
+  invsOf(c).filter(i => i.invoiceNo).forEach(i => { const k = ymOf(i.invoiceDate); billed[k] = (billed[k] || 0) + i.amountHT; });
+  camps.forEach(cp => { const a = allocByMonth(cp); Object.keys(a).forEach(k => { diff[k] = (diff[k] || 0) + a[k]; }); });
+  new Set([...Object.keys(billed), ...Object.keys(diff)]).forEach(k => {
+    const b = billed[k] || 0, d = diff[k] || 0, adj = camps.length ? d - b : 0;
+    if (Math.abs(b) < 0.005 && Math.abs(adj) < 0.005) return;
+    out[k] = { b, d, adj };
+  });
+  return out;
+}
+/* ---- CA DIFFUSÉ = facturé du mois + « à rajouter » (mis en cache le temps d'un affichage) ---- */
+let DC = {};
 function caDiffuseYear(y) {
+  if (DC[y]) return DC[y];
   const rows = Array.from({ length: 12 }, (_, i) => ({ ym: y + '-' + p2(i + 1), billed: 0, adj: 0, total: 0, cum: 0, detail: [] }));
   db.contracts.forEach(c => {
-    const camps = campsOf(c), billed = {}, diff = {};
-    invsOf(c).filter(i => i.invoiceNo).forEach(i => { const k = ymOf(i.invoiceDate); billed[k] = (billed[k] || 0) + i.amountHT; });
-    camps.forEach(cp => { const a = allocByMonth(cp); Object.keys(a).forEach(k => { diff[k] = (diff[k] || 0) + a[k]; }); });
-    new Set([...Object.keys(billed), ...Object.keys(diff)]).forEach(k => {
+    const m = contractDiffMonths(c);
+    Object.keys(m).forEach(k => {
       if (!k.startsWith(String(y))) return;
-      const b = billed[k] || 0, d = diff[k] || 0, adj = camps.length ? d - b : 0;
-      if (Math.abs(b) < 0.005 && Math.abs(adj) < 0.005) return;
-      const r = rows[+k.slice(5, 7) - 1];
-      r.billed += b; r.adj += adj; r.total += b + adj; r.detail.push({ c, b, d, adj });
+      const v = m[k], r = rows[+k.slice(5, 7) - 1];
+      r.billed += v.b; r.adj += v.adj; r.total += v.b + v.adj; r.detail.push({ c, b: v.b, d: v.d, adj: v.adj });
     });
   });
   let cum = 0; rows.forEach(r => { r.billed = round2(r.billed); r.adj = round2(r.adj); r.total = round2(r.total); cum += r.total; r.cum = round2(cum); });
-  return rows;
+  return (DC[y] = rows);
 }
 const caSigneMonth = ym => round2(sum(db.contracts.filter(c => ymOf(c.signedDate) === ym), c => c.amountHT));
 const caDiffuseMonth = ym => caDiffuseYear(+ym.slice(0, 4))[+ym.slice(5, 7) - 1].total;
@@ -451,16 +487,278 @@ const cols = (...c) => '<div class="columns is-multiline">' + c.map(x => '<div c
 const errBox = m => toast(m, 'danger');
 
 /* ==========================================================================
+   3b. CLIENTS : regroupement et statistiques par année
+   ========================================================================== */
+const clientKey = n => String(n || '').trim().toLowerCase().replace(/\s+/g, ' ');
+const ek = k => encodeURIComponent(k).replace(/'/g, '%27');
+function clientsList() {
+  const map = {};
+  visContracts().forEach(c => { const k = clientKey(c.client); (map[k] = map[k] || { key: k, name: c.client, contracts: [] }).contracts.push(c); });
+  return Object.values(map);
+}
+/* Chiffres d'un client, année par année (les années sans activité entre la première et la dernière sont incluses) */
+function clientStats(contracts) {
+  const Y = {}, row = y => (Y[y] = Y[y] || { y: String(y), n: 0, camps: 0, signe: 0, diffuse: 0, billed: 0, paid: 0, spots: 0 });
+  let reste = 0, first = '', last = '';
+  contracts.forEach(c => {
+    const r = row(c.signedDate.slice(0, 4)); r.n++; r.signe += c.amountHT;
+    if (!first || c.signedDate < first) first = c.signedDate;
+    if (!last || c.signedDate > last) last = c.signedDate;
+    const dm = contractDiffMonths(c);
+    Object.keys(dm).forEach(k => { row(k.slice(0, 4)).diffuse += dm[k].b + dm[k].adj; });
+    campsOf(c).forEach(cp => {
+      const a = allocByMonth(cp), s = allocByMonth(cp, 'spots');
+      new Set(Object.keys(a).map(k => k.slice(0, 4))).forEach(yy => { row(yy).camps++; });
+      Object.keys(s).forEach(k => { row(k.slice(0, 4)).spots += s[k]; });
+    });
+    invsOf(c).forEach(i => {
+      if (i.invoiceNo) { row(i.invoiceDate.slice(0, 4)).billed += i.amountHT; reste += invReste(i); }
+      (i.payments || []).forEach(p => { row(p.date.slice(0, 4)).paid += p.amount; });
+    });
+  });
+  const ys = Object.keys(Y).map(Number);
+  if (ys.length) for (let y = Math.min(...ys); y <= Math.max(...ys); y++) row(y);
+  const rows = Object.values(Y).sort((a, b) => a.y.localeCompare(b.y));
+  const tot = rows.reduce((t, r) => ({ n: t.n + r.n, signe: t.signe + r.signe, diffuse: t.diffuse + r.diffuse, billed: t.billed + r.billed, paid: t.paid + r.paid, spots: t.spots + r.spots }), { n: 0, signe: 0, diffuse: 0, billed: 0, paid: 0, spots: 0 });
+  return { rows, tot, reste: round2(reste), first, last, byYear: y => Y[y] || { n: 0, signe: 0, diffuse: 0, billed: 0, paid: 0, spots: 0, camps: 0 } };
+}
+const pct = (a, b) => b > 0.005 ? ((a - b) / b * 100) : null;
+const fpct = v => v === null ? '—' : (v >= 0 ? '+' : '') + v.toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' %';
+
+/* ==========================================================================
+   3c. GRAPHIQUES SVG (sans librairie) — année en cours en orange, années passées en gris chaud
+   ========================================================================== */
+const CH = { cur: '#F59C00', prev: '#8A7F6E', prev2: '#CFC6B6', alt: '#5B4A2F' };
+const kEur = v => Math.abs(v) >= 1000 ? (v / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' k€' : Math.round(v) + ' €';
+const kInt = v => Math.round(v).toLocaleString('fr-FR');
+function niceScale(max) {
+  if (!(max > 0)) return { max: 1, ticks: [0, 1] };
+  const raw = max / 4, mag = Math.pow(10, Math.floor(Math.log10(raw))), nm = raw / mag;
+  const step = (nm <= 1 ? 1 : nm <= 2 ? 2 : nm <= 2.5 ? 2.5 : nm <= 5 ? 5 : 10) * mag, top = Math.ceil(max / step - 1e-9) * step, ticks = [];
+  for (let v = 0; v <= top + 1e-9; v += step) ticks.push(v);
+  return { max: top, ticks };
+}
+const tipAttr = (title, rows) => esc(JSON.stringify({ t: title, r: rows }));
+function legendHtml(series, kind) {
+  return '<div class="legend">' + series.map(s => '<span class="lg">' + (kind === 'line' ? '<i class="lg-line" style="border-color:' + s.color + '"></i>' : '<i class="lg-sw" style="background:' + s.color + '"></i>') + esc(s.name) + '</span>').join('') + '</div>';
+}
+function chartTable(cats, series, fmt, first) {
+  return '<details class="chart-table"><summary>Voir les données (tableau)</summary><div class="tw"><table class="table is-narrow is-fullwidth"><thead><tr><th>' + esc(first || '') + '</th>' + series.map(s => '<th class="num">' + esc(s.name) + '</th>').join('') + '</tr></thead><tbody>' +
+    cats.map((c, i) => '<tr><td>' + esc(c) + '</td>' + series.map(s => '<td class="num">' + (s.vals[i] == null ? '—' : fmt(s.vals[i])) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div></details>';
+}
+/* Colonnes groupées. o = { cats, series:[{name,color,vals,from}], fmtTick, fmtVal, tipTitle(i), h, first } */
+function barChart(o) {
+  const W = o.w || 760, H = o.h || 270, m = { l: 58, r: 14, t: 14, b: 30 }, pw = W - m.l - m.r, ph = H - m.t - m.b;
+  const mx = Math.max(0, ...o.series.flatMap(s => s.vals.filter(v => v != null))), sc = niceScale(mx);
+  const y = v => m.t + ph - (v / sc.max) * ph, n = o.cats.length, band = pw / n, k = o.series.length;
+  const bw = Math.min(24, (band * .72 - (k - 1) * 2) / k), gw = k * bw + (k - 1) * 2;
+  let g = '';
+  sc.ticks.forEach(t => { g += '<line x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + y(t) + '" y2="' + y(t) + '" stroke="var(--border)"/><text x="' + (m.l - 8) + '" y="' + (y(t) + 4) + '" text-anchor="end">' + o.fmtTick(t) + '</text>'; });
+  o.cats.forEach((c, i) => {
+    const x0 = m.l + i * band + (band - gw) / 2;
+    o.series.forEach((s, j) => {
+      const v = s.vals[i]; if (v == null || v <= 0.005) return;
+      const x = x0 + j * (bw + 2), top = y(v), h = m.t + ph - top, r = Math.min(4, h, bw / 2), fut = s.from != null && i >= s.from;
+      g += '<path d="M' + x + ' ' + (m.t + ph) + 'V' + (top + r) + 'Q' + x + ' ' + top + ' ' + (x + r) + ' ' + top + 'H' + (x + bw - r) + 'Q' + (x + bw) + ' ' + top + ' ' + (x + bw) + ' ' + (top + r) + 'V' + (m.t + ph) + 'Z" fill="' + s.color + '"' + (fut ? ' opacity=".45"' : '') + '/>';
+    });
+    g += '<text x="' + (m.l + i * band + band / 2) + '" y="' + (H - 10) + '" text-anchor="middle">' + esc(c) + '</text>';
+  });
+  o.cats.forEach((c, i) => {
+    const rows = o.series.map(s => [s.name + (s.from != null && i >= s.from ? ' (prévu)' : ''), s.color, s.vals[i] == null ? '—' : o.fmtVal(s.vals[i])]);
+    g += '<g class="hitg"><rect class="hit" x="' + (m.l + i * band) + '" y="' + m.t + '" width="' + band + '" height="' + ph + '" data-tip="' + tipAttr(o.tipTitle ? o.tipTitle(i) : c, rows) + '"/></g>';
+  });
+  return '<div class="chart">' + (k > 1 ? legendHtml(o.series, 'bar') : '') + '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(o.label || 'Graphique') + '">' + g + '</svg>' + chartTable(o.cats, o.series, o.fmtVal, o.first) + '</div>';
+}
+/* Courbes. Les valeurs null interrompent la courbe (mois à venir). */
+function lineChart(o) {
+  const W = 760, H = o.h || 270, m = { l: 58, r: 24, t: 20, b: 30 }, pw = W - m.l - m.r, ph = H - m.t - m.b;
+  const mx = Math.max(0, ...o.series.flatMap(s => s.vals.filter(v => v != null))), sc = niceScale(mx);
+  const y = v => m.t + ph - (v / sc.max) * ph, n = o.cats.length, band = pw / n, x = i => m.l + band * (i + .5);
+  let g = '';
+  sc.ticks.forEach(t => { g += '<line x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + y(t) + '" y2="' + y(t) + '" stroke="var(--border)"/><text x="' + (m.l - 8) + '" y="' + (y(t) + 4) + '" text-anchor="end">' + o.fmtTick(t) + '</text>'; });
+  o.cats.forEach((c, i) => { g += '<text x="' + x(i) + '" y="' + (H - 10) + '" text-anchor="middle">' + esc(c) + '</text>'; });
+  o.series.slice().reverse().forEach(s => {           // la série principale (index 0) est dessinée en dernier, donc au-dessus
+    let d = '', pen = false, lastI = -1;
+    s.vals.forEach((v, i) => { if (v == null) { pen = false; return; } d += (pen ? 'L' : 'M') + x(i) + ' ' + y(v); pen = true; lastI = i; });
+    g += '<path d="' + d + '" fill="none" stroke="' + s.color + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+    if (lastI >= 0) {
+      g += '<circle cx="' + x(lastI) + '" cy="' + y(s.vals[lastI]) + '" r="4.5" fill="' + s.color + '" stroke="var(--card)" stroke-width="2"/>';
+      if (s === o.series[0]) g += '<text class="endlbl" x="' + x(lastI) + '" y="' + (y(s.vals[lastI]) - 11) + '" text-anchor="' + (lastI >= n - 2 ? 'end' : 'middle') + '">' + o.fmtVal(s.vals[lastI]) + '</text>';
+    }
+  });
+  o.cats.forEach((c, i) => {
+    const rows = o.series.map(s => [s.name, s.color, s.vals[i] == null ? '—' : o.fmtVal(s.vals[i])]);
+    g += '<g class="hitg"><line class="cross" x1="' + x(i) + '" x2="' + x(i) + '" y1="' + m.t + '" y2="' + (m.t + ph) + '"/><rect class="hit" x="' + (m.l + i * band) + '" y="' + m.t + '" width="' + band + '" height="' + ph + '" data-tip="' + tipAttr(o.tipTitle ? o.tipTitle(i) : c, rows) + '"/></g>';
+  });
+  return '<div class="chart">' + (o.series.length > 1 ? legendHtml(o.series, 'line') : '') + '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(o.label || 'Graphique') + '">' + g + '</svg>' + chartTable(o.cats, o.series, o.fmtVal, o.first) + '</div>';
+}
+/* Infobulle unique : le texte des données passe par textContent, jamais par innerHTML */
+(function () {
+  const tip = document.createElement('div'); tip.id = 'tip'; document.body.appendChild(tip);
+  document.addEventListener('pointermove', e => {
+    const h = e.target.closest && e.target.closest('[data-tip]');
+    if (!h) { tip.style.display = 'none'; return; }
+    let d; try { d = JSON.parse(h.dataset.tip); } catch (x) { return; }
+    tip.textContent = '';
+    const t = document.createElement('div'); t.className = 'tip-t'; t.textContent = d.t; tip.appendChild(t);
+    d.r.forEach(r => {
+      const row = document.createElement('div'); row.className = 'tip-r';
+      const k = document.createElement('i'); k.className = 'tip-k'; k.style.borderColor = r[1];
+      const nm = document.createElement('span'); nm.className = 'tip-n'; nm.textContent = r[0];
+      const v = document.createElement('b'); v.textContent = r[2];
+      row.append(k, nm, v); tip.appendChild(row);
+    });
+    tip.style.display = 'block';
+    const w = tip.offsetWidth, hgt = tip.offsetHeight;
+    tip.style.left = Math.min(e.clientX + 16, window.innerWidth - w - 8) + 'px';
+    tip.style.top = Math.min(e.clientY + 16, window.innerHeight - hgt - 8) + 'px';
+  });
+  document.addEventListener('scroll', () => { tip.style.display = 'none'; }, true);
+})();
+
+/* ==========================================================================
+   3d. COMPARATIF DU CA (année en cours vs N-1, mois vs mois-1, cumul, 12 mois glissants)
+   ========================================================================== */
+const MSHORT = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+function vCompare(y, yearSel) {
+  const C = ST.cmp, cur = today(), curY = +cur.slice(0, 4), curM = +cur.slice(5, 7);
+  const isCur = y === curY, anchorM = isCur ? curM : 12, anchorYm = y + '-' + p2(anchorM);
+  const mval = ym => C.metric === 'signe' ? caSigneMonth(ym) : caDiffuseMonth(ym);
+  const yr = yy => Array.from({ length: 12 }, (_, i) => mval(yy + '-' + p2(i + 1)));
+  const yrs = [y, y - 1].concat(C.y2 ? [y - 2] : []), cols = [CH.cur, CH.prev, CH.prev2];
+  const metricLbl = C.metric === 'signe' ? 'CA signé' : 'CA diffusé';
+  let chart;
+  if (C.view === 'roll') {
+    const yms = Array.from({ length: 12 }, (_, i) => addMonths(anchorYm, i - 11));
+    const s = [{ name: 'Mois concerné', color: CH.cur, vals: yms.map(mval) }, { name: 'Même mois l\'an passé', color: CH.prev, vals: yms.map(k => mval(addMonths(k, -12))) }];
+    chart = barChart({ cats: yms.map(k => MSHORT[+k.slice(5) - 1] + ' ' + k.slice(2, 4)), series: s, fmtTick: kEur, fmtVal: eur, tipTitle: i => ymLabel(yms[i]) + ' vs ' + ymLabel(addMonths(yms[i], -12)), label: metricLbl + ' : 12 derniers mois vs mêmes mois de l\'an passé', first: 'Mois' });
+  } else {
+    const s = yrs.map((yy, k) => {
+      let v = yr(yy);
+      const live = yy === curY;                                              // année en cours : mois à venir
+      if (C.view === 'cumul') { let t = 0; v = v.map((x, i) => { t += x; return live && i >= curM ? null : round2(t); }); }
+      return { name: String(yy), color: cols[k], vals: v, from: C.view === 'month' && live ? curM : null };
+    });
+    chart = C.view === 'cumul'
+      ? lineChart({ cats: MSHORT, series: s, fmtTick: kEur, fmtVal: eur, label: metricLbl + ' cumulé par année', first: 'Mois' })
+      : barChart({ cats: MSHORT, series: s, fmtTick: kEur, fmtVal: eur, tipTitle: i => MONTHS[i], label: metricLbl + ' par mois et par année', first: 'Mois' });
+  }
+  /* Cartes de variation */
+  const ytd = yy => sum(Array.from({ length: anchorM }, (_, i) => i), i => mval(yy + '-' + p2(i + 1)));
+  const rolling = (ym, back) => sum(Array.from({ length: 12 }, (_, i) => i), i => mval(addMonths(ym, -i - back)));
+  const prevYm = addMonths(anchorYm, -1), lastYm = addMonths(anchorYm, -12);
+  const card = (label, now, base, ctx) => {
+    const p = pct(now, base), d = round2(now - base), up = d >= 0;
+    const dl = base <= 0.005 ? '<span class="muted">' + (now > 0.005 ? 'Pas de référence' : '—') + '</span>' : '<span class="dl ' + (up ? 'up' : 'dn') + '">' + (up ? '▲' : '▼') + ' ' + fpct(p) + ' <small>(' + (up ? '+' : '') + eur(d) + ')</small></span>';
+    return '<div class="kpi"><div class="kpi-l">' + label + '</div><div class="kpi-v">' + eur(now) + '</div><div class="kpi-s">' + dl + '<br>' + ctx + ' : ' + eur(base) + '</div></div>';
+  };
+  const cards = card('Mois vs mois précédent', mval(anchorYm), mval(prevYm), esc(ymLabel(prevYm))) +
+    card('Mois vs même mois N-1', mval(anchorYm), mval(lastYm), esc(ymLabel(lastYm))) +
+    card('Cumul depuis janvier vs N-1', ytd(y), ytd(y - 1), 'Janv.–' + MSHORT[anchorM - 1] + ' ' + (y - 1)) +
+    card('12 derniers mois vs 12 précédents', rolling(anchorYm, 0), rolling(anchorYm, 12), '12 mois précédents');
+  const tg = (grp, key, val, label) => '<button class="button is-small ' + (C[key] === val ? 'is-primary' : '') + '" onclick="ST.cmp.' + key + '=\'' + val + '\';renderAll()">' + label + '</button>';
+  return '<div class="box"><div class="box-h"><h2>Comparatif · ' + metricLbl + '</h2><div class="bar" style="margin:0">' + yearSel + '<div class="buttons has-addons mb-0">' + tg('', 'metric', 'signe', 'CA signé') + tg('', 'metric', 'diffuse', 'CA diffusé') + '</div>' +
+    '<div class="buttons has-addons mb-0">' + tg('', 'view', 'month', 'Par mois') + tg('', 'view', 'cumul', 'Cumulé') + tg('', 'view', 'roll', '12 mois glissants') + '</div>' +
+    (C.view === 'roll' ? '' : '<label class="checkbox"><input type="checkbox" ' + (C.y2 ? 'checked' : '') + ' onchange="ST.cmp.y2=this.checked;renderAll()"> ajouter ' + (y - 2) + '</label>') + '</div></div>' +
+    '<div class="kpis" style="margin-bottom:14px">' + cards + '</div>' + chart +
+    '<p class="help muted mt-2">' + (isCur ? 'Repère : ' + ymLabel(anchorYm) + ' (mois en cours, partiel). ' : '') + (C.metric === 'diffuse' ? 'Les mois à venir affichent la diffusion déjà planifiée (colonnes estompées).' : 'Le CA signé est daté du jour de signature du contrat.') + '</p></div>';
+}
+
+/* ==========================================================================
+   3e. ONGLET CLIENTS
+   ========================================================================== */
+let CL = null;
+function vClients() {
+  const f = ST.clf, q = f.q.trim().toLowerCase(), curY = today().slice(0, 4);
+  const list = clientsList().map(cl => ({ cl, S: clientStats(cl.contracts) })).filter(x => (!q || x.cl.name.toLowerCase().includes(q)) && (!f.seller || x.cl.contracts.some(c => c.sellerId === f.seller)))
+    .sort((a, b) => b.S.tot.signe - a.S.tot.signe);
+  const rows = list.map(({ cl, S }) => {
+    const sellers = [...new Set(cl.contracts.map(c => sellerName(c.sellerId)))].join(', '), cy = S.byYear(curY);
+    return '<tr class="clickable" onclick="openClient(decodeURIComponent(\'' + ek(cl.key) + '\'))"><td><b>' + esc(cl.name) + '</b></td><td>' + esc(sellers) + '</td><td class="num">' + S.tot.n + '</td><td class="num">' + eur(S.tot.signe) + '</td><td class="num">' + eur(cy.signe) + '</td><td class="num">' + eur(S.tot.diffuse) + '</td><td class="num">' + (kInt(cy.spots) || 0) + '</td><td class="num">' + kInt(S.tot.spots) + '</td><td class="num">' + (S.reste > 0.005 ? '<b>' + eur(S.reste) + '</b>' : eur(0)) + '</td><td>' + fdate(S.last) + '</td></tr>';
+  }).join('');
+  const T = list.reduce((t, x) => ({ signe: t.signe + x.S.tot.signe, diffuse: t.diffuse + x.S.tot.diffuse, spots: t.spots + x.S.tot.spots, reste: t.reste + x.S.reste }), { signe: 0, diffuse: 0, spots: 0, reste: 0 });
+  return '<div class="box"><div class="box-h"><h2>Clients</h2><button class="button is-light-orange" onclick="exportClients()">Export CSV</button></div>' +
+    '<div class="bar"><input class="input" style="max-width:260px" id="clq" placeholder="Rechercher un client…" value="' + esc(f.q) + '" oninput="ST.clf.q=this.value;renderAll()">' +
+    (me().role === 'commercial' ? '' : '<div class="select"><select id="clseller" onchange="setF(\'clf\',\'seller\',this.value)">' + opts([{ v: '', l: 'Tous les commerciaux' }].concat(db.sellers.map(s => ({ v: s.id, l: s.name }))), f.seller) + '</select></div>') +
+    '<span class="sub muted">' + list.length + ' client(s) · CA signé cumulé ' + eur(T.signe) + '</span></div>' +
+    (list.length ? '<div class="tw"><table class="table is-fullwidth is-hoverable"><thead><tr><th>Client</th><th>Commercial(s)</th><th class="num">Contrats</th><th class="num">CA signé total</th><th class="num">CA signé ' + curY + '</th><th class="num">CA diffusé total</th><th class="num">Spots ' + curY + '</th><th class="num">Spots total</th><th class="num">Reste à encaisser</th><th>Dernier contrat</th></tr></thead><tbody>' + rows + '</tbody>' +
+      '<tfoot><tr><td colspan="3">Total</td><td class="num">' + eur(T.signe) + '</td><td></td><td class="num">' + eur(T.diffuse) + '</td><td></td><td class="num">' + kInt(T.spots) + '</td><td class="num">' + eur(T.reste) + '</td><td></td></tr></tfoot></table></div>' : '<div class="empty">Aucun client. Les clients apparaissent dès qu\'un contrat est saisi.</div>') + '</div>';
+}
+function exportClients() {
+  const rows = [['Client', 'Contrats', 'CA signé total', 'CA diffusé total', 'Spots total', 'Reste à encaisser', 'Premier contrat', 'Dernier contrat']];
+  clientsList().forEach(cl => { const S = clientStats(cl.contracts); rows.push([cl.name, S.tot.n, S.tot.signe, round2(S.tot.diffuse), Math.round(S.tot.spots), S.reste, S.first, S.last]); });
+  csv('clients.csv', rows);
+}
+function openClient(key) {
+  const h = openModal({ title: '', body: '', wide: true, buttons: [{ label: 'Fermer', onClick: (e, c) => c() }] });
+  CL = { key, el: h.el, render() { renderClientModal(this); } }; CL.render();
+}
+function renderClientModal(m) {
+  const cs = visContracts().filter(c => clientKey(c.client) === m.key);
+  if (!cs.length) { m.el.remove(); CL = null; return; }
+  const body = $('.modal-card-body', m.el), keep = body.scrollTop, mgr = isMgr();
+  const name = cs.slice().sort((a, b) => b.signedDate.localeCompare(a.signedDate))[0].client, S = clientStats(cs), info = db.clientInfo[m.key] || {};
+  $('.modal-card-title', m.el).textContent = 'Client — ' + name;
+  const cats = S.rows.map(r => r.y);
+  const chCA = barChart({ cats, series: [{ name: 'CA signé', color: CH.cur, vals: S.rows.map(r => round2(r.signe)) }, { name: 'CA diffusé', color: CH.prev, vals: S.rows.map(r => round2(r.diffuse)) }], fmtTick: kEur, fmtVal: eur, w: 520, h: 250, label: 'CA signé et diffusé par année', first: 'Année' });
+  const chSp = barChart({ cats, series: [{ name: 'Spots', color: CH.cur, vals: S.rows.map(r => Math.round(r.spots)) }], fmtTick: kInt, fmtVal: kInt, w: 520, h: 250, label: 'Nombre de spots par année', first: 'Année' });
+  const yrRows = S.rows.slice().reverse().map((r, i, arr) => {
+    const prev = S.rows.find(x => +x.y === +r.y - 1), ev = prev ? pct(r.signe, prev.signe) : null;
+    return '<tr><td><b>' + r.y + '</b></td><td class="num">' + r.n + '</td><td class="num">' + eur(r.signe) + '</td><td class="num">' + (ev === null ? '<span class="muted">—</span>' : '<span class="dl ' + (ev >= 0 ? 'up' : 'dn') + '">' + (ev >= 0 ? '▲' : '▼') + ' ' + fpct(ev) + '</span>') + '</td><td class="num">' + eur(r.diffuse) + '</td><td class="num">' + eur(r.billed) + '</td><td class="num">' + eur(r.paid) + '</td><td class="num">' + r.camps + '</td><td class="num"><b>' + kInt(r.spots) + '</b></td></tr>';
+  }).join('');
+  const camps = cs.flatMap(c => campsOf(c).map(x => ({ c, x }))).sort((a, b) => b.x.start.localeCompare(a.x.start));
+  const invs = cs.flatMap(c => invsOf(c).map(i => ({ c, i }))).sort((a, b) => b.i.invoiceDate.localeCompare(a.i.invoiceDate));
+  const sellersTxt = [...new Set(cs.map(c => sellerName(c.sellerId)))].join(', ');
+  body.innerHTML =
+    '<div class="kpis k6">' + kpi('CA signé total', eur(S.tot.signe), S.tot.n + ' contrat(s)') + kpi('CA diffusé total', eur(S.tot.diffuse), 'facturé + à rajouter') + kpi('Spots diffusés', kInt(S.tot.spots), 'toutes années') +
+      kpi('Encaissé TTC', eur(S.tot.paid), 'Facturé HT ' + eur(S.tot.billed)) + kpi('Reste à encaisser', eur(S.reste), 'TTC', S.reste > 0.005 ? 'danger' : '') + kpi('Client depuis', fdate(S.first), 'dernier contrat ' + fdate(S.last)) + '</div>' +
+    '<div class="box"><div class="box-h"><h2>Coordonnées &amp; notes</h2><div>' + (mgr ? '<button class="button is-small is-light-orange" onclick="clientInfoForm(decodeURIComponent(\'' + ek(m.key) + '\'))">Modifier</button> <button class="button is-small is-light-orange" onclick="renameClient(decodeURIComponent(\'' + ek(m.key) + '\'))">Renommer / fusionner</button>' : '') + '</div></div>' +
+      '<div class="columns is-multiline"><div class="column is-3"><span class="muted">Contact</span><br><b>' + esc(info.contact || '—') + '</b></div><div class="column is-3"><span class="muted">E-mail</span><br><b>' + (info.email ? '<a href="mailto:' + esc(info.email) + '">' + esc(info.email) + '</a>' : '—') + '</b></div><div class="column is-3"><span class="muted">Téléphone</span><br><b>' + esc(info.phone || '—') + '</b></div><div class="column is-3"><span class="muted">Commercial(s)</span><br><b>' + esc(sellersTxt) + '</b></div>' +
+      (info.notes ? '<div class="column is-12"><span class="muted">Notes</span><br>' + esc(info.notes) + '</div>' : '') + '</div></div>' +
+    '<div class="box"><div class="box-h"><h2>Année par année</h2></div><div class="tw"><table class="table is-fullwidth"><thead><tr><th>Année</th><th class="num">Contrats signés</th><th class="num">CA signé</th><th class="num">Évol. vs N-1</th><th class="num">CA diffusé</th><th class="num">Facturé HT</th><th class="num">Encaissé TTC</th><th class="num">Campagnes</th><th class="num">Spots</th></tr></thead><tbody>' + yrRows + '</tbody>' +
+      '<tfoot><tr><td>Total</td><td class="num">' + S.tot.n + '</td><td class="num">' + eur(S.tot.signe) + '</td><td></td><td class="num">' + eur(S.tot.diffuse) + '</td><td class="num">' + eur(S.tot.billed) + '</td><td class="num">' + eur(S.tot.paid) + '</td><td></td><td class="num">' + kInt(S.tot.spots) + '</td></tr></tfoot></table></div>' +
+      '<p class="help muted">Spots : nombre saisi sur chaque campagne, réparti au prorata des jours de diffusion. Campagnes : campagnes actives sur l\'année.</p></div>' +
+    '<div class="grid2"><div class="box"><div class="box-h"><h2>CA par année</h2></div>' + chCA + '</div><div class="box"><div class="box-h"><h2>Spots par année</h2></div>' + chSp + '</div></div>' +
+    '<div class="box"><div class="box-h"><h2>Contrats</h2></div><div class="tw"><table class="table is-fullwidth is-hoverable"><thead><tr><th>ODP</th><th>Signé le</th><th>Libellé</th><th>Type</th><th class="num">Montant HT</th><th>Avancement</th></tr></thead><tbody>' +
+      cs.slice().sort((a, b) => b.signedDate.localeCompare(a.signedDate)).map(c => { const p = progressOf(c); return '<tr class="clickable" onclick="openContract(\'' + c.id + '\')"><td><b>' + esc(c.odp) + '</b></td><td>' + fdate(c.signedDate) + '</td><td>' + esc(c.label) + '</td><td>' + (c.type === 'sponsoring' ? '<span class="tag o25">Sponsoring</span>' : '<span class="tag grey">Publicité</span>') + '</td><td class="num">' + eur(c.amountHT) + '</td><td><span class="prog ' + (p.pct === 100 ? 'full' : '') + '"><i style="width:' + p.pct + '%"></i></span> <small>' + p.done + '/' + p.total + '</small></td></tr>'; }).join('') + '</tbody></table></div></div>' +
+    '<div class="grid2"><div class="box"><div class="box-h"><h2>Campagnes</h2></div>' + (camps.length ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Campagne</th><th>Période</th><th class="num">HT</th><th class="num">Spots</th><th>Antenne</th></tr></thead><tbody>' + camps.map(({ c, x }) => '<tr><td>' + esc(x.label) + '<br><small class="muted">' + esc(c.odp) + '</small></td><td>' + fdate(x.start) + ' → ' + fdate(x.end) + '</td><td class="num">' + eur(x.amountHT) + '</td><td class="num">' + (x.spots ? kInt(x.spots) : '—') + '</td><td class="' + ANT_CLS[x.antenne] + '">' + ANTENNE.find(a => a.v === x.antenne).l + '</td></tr>').join('') + '</tbody></table></div>' : '<div class="empty">Aucune campagne.</div>') + '</div>' +
+    '<div class="box"><div class="box-h"><h2>Factures &amp; règlements</h2></div>' + (invs.length ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Facture</th><th>Date</th><th class="num">TTC</th><th class="num">Réglé</th><th class="num">Reste</th><th>Statut</th></tr></thead><tbody>' + invs.map(({ i }) => { const s = invStatus(i); return '<tr><td>' + (i.invoiceNo ? esc(i.invoiceNo) : '<span class="muted">planifiée</span>') + '</td><td>' + fdate(i.invoiceDate) + '</td><td class="num">' + eur(invTTC(i)) + '</td><td class="num">' + eur(invPaid(i)) + '</td><td class="num">' + eur(invReste(i)) + '</td><td><span class="tag ' + s.cls + '">' + s.l + '</span></td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="empty">Aucune facture.</div>') + '</div></div>';
+  body.scrollTop = keep;
+}
+function clientInfoForm(key) {
+  if (!isMgr()) return;
+  const i = db.clientInfo[key] || {};
+  openModal({
+    title: 'Coordonnées du client', body: '<form onsubmit="return false">' + cols(fld('Contact', 'contact', i.contact || ''), fld('Téléphone', 'phone', i.phone || ''), fld('E-mail', 'email', i.email || '', { type: 'email' })) + fld('Notes', 'notes', i.notes || '', { type: 'textarea' }) + '</form>',
+    buttons: [{ label: 'Enregistrer', cls: 'is-primary', onClick: (el, close) => { const f = fdata(el); db.clientInfo[key] = { contact: f.contact.trim(), phone: f.phone.trim(), email: f.email.trim(), notes: f.notes.trim() }; audit('Modification', 'Client', key, 'Coordonnées'); close(); commit(); } }, { label: 'Annuler', onClick: (el, close) => close() }]
+  });
+}
+function renameClient(key) {
+  if (!isMgr()) return;
+  const cur = db.contracts.find(c => clientKey(c.client) === key); if (!cur) return;
+  const nn = (prompt('Nouveau nom du client (le nom d\'un client existant fusionne les deux fiches) :', cur.client) || '').trim();
+  if (!nn || nn === cur.client) return;
+  const nk = clientKey(nn), exists = nk !== key && db.contracts.some(c => clientKey(c.client) === nk);
+  if (exists && !confirm('« ' + nn + ' » existe déjà : fusionner les deux fiches ? Cette action regroupe tous leurs contrats.')) return;
+  db.contracts.forEach(c => { if (clientKey(c.client) === key) c.client = nn; });
+  if (db.clientInfo[key] && !db.clientInfo[nk]) db.clientInfo[nk] = db.clientInfo[key];
+  if (nk !== key) delete db.clientInfo[key];
+  audit(exists ? 'Fusion' : 'Renommage', 'Client', nk, cur.client + ' → ' + nn);
+  if (CL) CL.key = nk; commit(); toast(exists ? 'Fiches fusionnées' : 'Client renommé');
+}
+
+/* ==========================================================================
    5. ÉTAT & ROUTAGE
    ========================================================================== */
 let PAGE = 'accueil';
-const ST = { cf: { q: '', year: '', seller: '', type: '', status: '' }, cm: today().slice(0, 7), ef: { q: '', status: '', seller: '', year: today().slice(0, 4) }, cay: +today().slice(0, 4) };
+const ST = { cf: { q: '', year: '', seller: '', type: '', status: '' }, cm: today().slice(0, 7), ef: { q: '', status: '', seller: '', year: today().slice(0, 4) }, cay: +today().slice(0, 4), clf: { q: '', seller: '' }, cmp: { metric: 'signe', view: 'month', y2: false } };
 const ANTENNE = [{ v: 'none', l: 'Non placée' }, { v: 'sent', l: "Envoyée à l'antenne (Aquira)" }, { v: 'confirmed', l: "Confirmée par l'antenne" }];
 const ANT_CLS = { none: 'aq-none', sent: 'aq-sent', confirmed: 'aq-conf' };
 const MODES = [{ v: 'ESPECES', l: 'Espèces' }, { v: 'CHQ', l: 'Chèque' }, { v: 'VIRMT', l: 'Virement' }, { v: 'PRELVT', l: 'Prélèvement' }];
 let CM = null;   // modale contrat ouverte
 
 function renderAll() {
+  DC = {};
   const ae = document.activeElement, aid = ae && ae.id, pos = ae && ae.selectionStart;
   const sel = $('#userSel');
   sel.innerHTML = db.users.map(u => '<option value="' + u.id + '"' + (u.id === me().id ? ' selected' : '') + '>' + esc(u.name) + '</option>').join('');
@@ -470,12 +768,13 @@ function renderAll() {
   if (PAGE === 'ca' && !isMgr()) PAGE = 'accueil';
   $$('.page').forEach(p => p.classList.toggle('active', p.id === PAGE));
   $$('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === PAGE));
-  const V = { accueil: vHome, contrats: vContracts, campagnes: vCampaigns, encaissements: vPay, ca: vCA, alertes: vAlerts };
+  const V = { accueil: vHome, contrats: vContracts, clients: vClients, campagnes: vCampaigns, encaissements: vPay, ca: vCA, alertes: vAlerts };
   $('#' + PAGE).innerHTML = V[PAGE]();
   const n = computeAlerts().filter(a => a.lvl !== 'info').length;
   $('#badge').textContent = n || '';
   if (aid) { const nd = document.getElementById(aid); if (nd) { nd.focus(); try { nd.setSelectionRange(pos, pos); } catch (e) { /* ignore */ } } }
   if (CM && document.body.contains(CM.el)) CM.render();
+  if (CL && document.body.contains(CL.el)) CL.render();
 }
 function go(p) { PAGE = p; renderAll(); window.scrollTo(0, 0); }
 const setF = (grp, k, v) => { ST[grp][k] = v; renderAll(); };
@@ -552,6 +851,7 @@ function campForm(cid, id) {
   const body = '<form onsubmit="return false">' + cols(
     fld('Campagne / libellé', 'label', cp ? cp.label : c.label, { req: true }),
     fld('Montant HT alloué (€)', 'amountHT', cp ? cp.amountHT : Math.max(left, 0), { req: true, type: 'number', step: '0.01', help: 'Reste à allouer sur le contrat : ' + eur(left) }),
+    fld('Nombre de spots (total)', 'spots', cp && cp.spots ? cp.spots : '', { type: 'number', step: '1', help: 'Optionnel. Réparti au prorata des jours de diffusion pour les stats par année.' }),
     fld('Début de diffusion', 'start', cp ? cp.start : '', { type: 'date', req: true }),
     fld('Fin de diffusion', 'end', cp ? cp.end : '', { type: 'date', req: true }),
     fld('Statut antenne', 'antenne', cp ? cp.antenne : 'none', { options: ANTENNE })) + '</form>';
@@ -567,7 +867,7 @@ function campForm(cid, id) {
           if (a > left + 0.01 && !confirm('Le total des campagnes dépassera le montant du contrat de ' + eur(a - left) + '. Continuer ?')) return;
           const tgt = cp || { id: uid(), contractId: cid, sentDate: '', confirmedDate: '' };
           const prev = tgt.antenne;
-          Object.assign(tgt, { label: f.label.trim(), amountHT: a, start: f.start, end: f.end, antenne: f.antenne });
+          Object.assign(tgt, { label: f.label.trim(), amountHT: a, spots: Math.max(0, Math.round(num(f.spots))), start: f.start, end: f.end, antenne: f.antenne });
           if (f.antenne !== prev) stampAntenne(tgt);
           if (!cp) db.campaigns.push(tgt);
           audit(cp ? 'Modification' : 'Création', 'Campagne', tgt.id, c.odp + ' · ' + tgt.label + ' · ' + eur(a));
@@ -738,12 +1038,13 @@ function renderContractModal(m) {
   const mgr = isMgr(), st = stepsOf(c), p = progressOf(c);
   const camps = campsOf(c), invs = invsOf(c), bks = bksOf(c);
   $('.modal-card-title', m.el).textContent = 'Contrat ' + c.odp + ' — ' + c.client;
+  const keepScroll = $('.modal-card-body', m.el).scrollTop;
   const ic = { done: '✅', todo: '⬜', partial: '🟠', na: '➖' };
   const stepHtml = st.map(s => '<div class="step"><span class="muted">' + s.k + '</span><span class="ic">' + ic[s.status] + '</span><span>' + esc(s.label) + (s.detail ? ' <small>· ' + esc(s.detail) + '</small>' : '') + '</span>' +
     (s.k === 1 && mgr ? '<label class="checkbox"><input type="checkbox" ' + (c.filed ? 'checked' : '') + ' onchange="toggleFiled(\'' + c.id + '\',this.checked)"> rangé</label>' : '<span></span>') + '</div>').join('');
   const campSum = round2(sum(camps, x => x.amountHT)), campDiff = round2(campSum - c.amountHT);
   const invSum = round2(sum(invs, x => x.amountHT));
-  const campRows = camps.map(x => '<tr><td>' + esc(x.label) + '</td><td>' + fdate(x.start) + ' → ' + fdate(x.end) + '</td><td class="num">' + eur(x.amountHT) + '</td><td class="' + ANT_CLS[x.antenne] + '">' + (ANTENNE.find(a => a.v === x.antenne).l) + '</td>' +
+  const campRows = camps.map(x => '<tr><td>' + esc(x.label) + '</td><td>' + fdate(x.start) + ' → ' + fdate(x.end) + '</td><td class="num">' + eur(x.amountHT) + '</td><td class="num">' + (x.spots ? kInt(x.spots) : '—') + '</td><td class="' + ANT_CLS[x.antenne] + '">' + (ANTENNE.find(a => a.v === x.antenne).l) + '</td>' +
     '<td class="num">' + (mgr ? '<button class="button is-small is-light-orange" onclick="campForm(\'' + c.id + '\',\'' + x.id + '\')">Modifier</button> <button class="button is-small" onclick="delCampaign(\'' + x.id + '\')">✕</button>' : '') + '</td></tr>').join('');
   const bkRows = bks.map(x => '<tr><td>' + esc(x.emission) + '</td><td>' + esc(x.slot) + '</td><td>' + fdate(x.start) + ' → ' + fdate(x.end) + '</td><td>' + (x.status === 'confirme' ? '<span class="tag ok">Confirmée</span>' : '<span class="tag o25">Réservée</span>') + '</td>' +
     '<td class="num">' + (mgr ? '<button class="button is-small is-light-orange" onclick="bookForm(\'' + c.id + '\',\'' + x.id + '\')">Modifier</button> <button class="button is-small" onclick="delBooking(\'' + x.id + '\')">✕</button>' : '') + '</td></tr>').join('');
@@ -757,12 +1058,13 @@ function renderContractModal(m) {
     '<div class="column is-12"><span class="muted">Drive</span> ' + (c.driveUrl ? '<a href="' + esc(c.driveUrl) + '" target="_blank" rel="noopener">Ouvrir le contrat</a>' : '<span class="muted">aucun lien</span>') + (c.notes ? ' &nbsp;·&nbsp; <span class="muted">Notes :</span> ' + esc(c.notes) : '') + '</div></div></div>' +
     '<div class="box"><div class="box-h"><h2>Suivi des 8 étapes</h2><span class="sub">' + p.done + ' / ' + p.total + ' étapes</span></div>' + stepHtml + '</div>' +
     '<div class="box"><div class="box-h"><h2>Campagnes</h2><div><span class="sub">Total ' + eur(campSum) + ' / ' + eur(c.amountHT) + (Math.abs(campDiff) > 0.01 ? ' <b style="color:var(--danger)">(écart ' + eur(campDiff) + ')</b>' : '') + '</span> ' + (mgr ? '<button class="button is-small is-primary" onclick="campForm(\'' + c.id + '\')">+ Campagne</button>' : '') + '</div></div>' +
-    (camps.length ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Campagne</th><th>Période</th><th class="num">HT</th><th>Antenne</th><th></th></tr></thead><tbody>' + campRows + '</tbody></table></div>' : '<div class="empty">Aucune campagne enregistrée.</div>') + '</div>' +
+    (camps.length ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Campagne</th><th>Période</th><th class="num">HT</th><th class="num">Spots</th><th>Antenne</th><th></th></tr></thead><tbody>' + campRows + '</tbody></table></div>' : '<div class="empty">Aucune campagne enregistrée.</div>') + '</div>' +
     (c.type === 'sponsoring' ? '<div class="box"><div class="box-h"><h2>Réservation des émissions sponsorisées</h2>' + (mgr ? '<button class="button is-small is-primary" onclick="bookForm(\'' + c.id + '\')">+ Réservation</button>' : '') + '</div>' +
       (bks.length ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Émission</th><th>Créneau</th><th>Période</th><th>Statut</th><th></th></tr></thead><tbody>' + bkRows + '</tbody></table></div>' : '<div class="empty">Aucune émission réservée.</div>') + '</div>' : '') +
     '<div class="box"><div class="box-h"><h2>Facturation &amp; encaissements</h2><div><span class="sub">Facturé HT ' + eur(invSum) + ' / ' + eur(c.amountHT) + '</span> ' + (mgr ? '<button class="button is-small is-primary" onclick="invForm(\'' + c.id + '\')">+ Encaissement</button>' : '') + '</div></div>' +
     (invs.length ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Facture</th><th>Date</th><th class="num">HT</th><th class="num">TTC</th><th class="num">Réglé</th><th class="num">Reste</th><th>Statut</th><th></th></tr></thead><tbody>' + invRows + '</tbody></table></div>' : '<div class="empty">Aucun encaissement enregistré.</div>') + '</div>' +
     (logs ? '<div class="box"><div class="box-h"><h2>Historique</h2></div><div class="tw"><table class="table is-fullwidth is-narrow"><tbody>' + logs + '</tbody></table></div></div>' : '');
+  $('.modal-card-body', m.el).scrollTop = keepScroll;
 }
 
 /* ==========================================================================
@@ -814,16 +1116,16 @@ function vCampaigns() {
   const first = ym + '-01', last = ym + '-31';
   const list = db.campaigns.filter(x => ids.has(x.contractId) && x.start <= last && x.end >= first).sort((a, b) => a.start.localeCompare(b.start));
   const rows = list.map(x => {
-    const c = contractOf(x.contractId), part = allocByMonth(x)[ym] || 0;
+    const c = contractOf(x.contractId), part = allocByMonth(x)[ym] || 0, sp = allocByMonth(x, 'spots')[ym] || 0;
     const sel = mgr ? '<div class="select is-small"><select class="' + ANT_CLS[x.antenne] + '" onchange="setAntenne(\'' + x.id + '\',this.value)">' + opts(ANTENNE, x.antenne) + '</select></div>' : '<span class="' + ANT_CLS[x.antenne] + '">' + ANTENNE.find(a => a.v === x.antenne).l + '</span>';
-    return '<tr><td><a onclick="openContract(\'' + c.id + '\')"><b>' + esc(c.odp) + '</b></a></td><td>' + esc(c.client) + '</td><td>' + esc(x.label) + (c.type === 'sponsoring' ? ' <span class="tag o25">Sponsoring</span>' : '') + '</td><td>' + fdate(x.start) + ' → ' + fdate(x.end) + '</td><td class="num">' + eur(x.amountHT) + '</td><td class="num">' + eur(part) + '</td><td>' + sel + '</td><td class="muted">' + (x.confirmedDate ? 'conf. ' + fdate(x.confirmedDate) : x.sentDate ? 'env. ' + fdate(x.sentDate) : '') + '</td></tr>';
+    return '<tr><td><a onclick="openContract(\'' + c.id + '\')"><b>' + esc(c.odp) + '</b></a></td><td>' + esc(c.client) + '</td><td>' + esc(x.label) + (c.type === 'sponsoring' ? ' <span class="tag o25">Sponsoring</span>' : '') + '</td><td>' + fdate(x.start) + ' → ' + fdate(x.end) + '</td><td class="num">' + eur(x.amountHT) + '</td><td class="num">' + eur(part) + '</td><td class="num">' + (sp ? kInt(sp) : '—') + '</td><td>' + sel + '</td><td class="muted">' + (x.confirmedDate ? 'conf. ' + fdate(x.confirmedDate) : x.sentDate ? 'env. ' + fdate(x.sentDate) : '') + '</td></tr>';
   }).join('');
   const bks = db.bookings.filter(b => ids.has(b.contractId) && b.start <= last && b.end >= first).sort((a, b) => a.emission.localeCompare(b.emission));
   const bkRows = bks.map(b => { const c = contractOf(b.contractId); return '<tr><td><b>' + esc(b.emission) + '</b></td><td>' + esc(b.slot) + '</td><td>' + esc(c.client) + '</td><td>' + fdate(b.start) + ' → ' + fdate(b.end) + '</td><td>' + (b.status === 'confirme' ? '<span class="tag ok">Confirmée</span>' : '<span class="tag o25">Réservée</span>') + '</td></tr>'; }).join('');
   return '<div class="box"><div class="box-h"><div class="mnav"><button class="button" onclick="ST.cm=addMonths(ST.cm,-1);renderAll()">◀</button><div class="ml">' + ymLabel(ym) + '</div><button class="button" onclick="ST.cm=addMonths(ST.cm,1);renderAll()">▶</button><button class="button is-light-orange" onclick="ST.cm=today().slice(0,7);renderAll()">Aujourd\'hui</button></div>' +
     '<span class="sub">Légende antenne : <span class="aq-none">non placée</span> · <span class="aq-sent">envoyée (rouge)</span> · <span class="aq-conf">confirmée (rouge gras)</span></span></div>' +
-    (list.length ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>ODP</th><th>Client</th><th>Campagne</th><th>Période</th><th class="num">HT total</th><th class="num">HT du mois</th><th>Statut antenne</th><th></th></tr></thead><tbody>' + rows + '</tbody>' +
-      '<tfoot><tr><td colspan="5">Diffusé sur le mois (prorata jours)</td><td class="num">' + eur(sum(list, x => allocByMonth(x)[ym] || 0)) + '</td><td colspan="2"></td></tr></tfoot></table></div>' : '<div class="empty">Aucune campagne diffusée en ' + ymLabel(ym) + '.</div>') + '</div>' +
+    (list.length ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>ODP</th><th>Client</th><th>Campagne</th><th>Période</th><th class="num">HT total</th><th class="num">HT du mois</th><th class="num">Spots du mois</th><th>Statut antenne</th><th></th></tr></thead><tbody>' + rows + '</tbody>' +
+      '<tfoot><tr><td colspan="5">Diffusé sur le mois (prorata jours)</td><td class="num">' + eur(sum(list, x => allocByMonth(x)[ym] || 0)) + '</td><td class="num">' + kInt(sum(list, x => allocByMonth(x, 'spots')[ym] || 0)) + '</td><td colspan="2"></td></tr></tfoot></table></div>' : '<div class="empty">Aucune campagne diffusée en ' + ymLabel(ym) + '.</div>') + '</div>' +
     '<div class="box"><div class="box-h"><h2>Émissions sponsorisées · ' + ymLabel(ym) + '</h2></div>' +
     (bks.length ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Émission</th><th>Créneau</th><th>Client</th><th>Période</th><th>Statut</th></tr></thead><tbody>' + bkRows + '</tbody></table></div>' : '<div class="empty">Aucune réservation ce mois-ci.</div>') + '</div>';
 }
@@ -876,7 +1178,7 @@ function vCA() {
   }).join('');
   const signRows = sg.map((r, i) => '<tr class="clickable" onclick="caSigneDetail(\'' + r.ym + '\')"><td><b>' + MONTHS[i] + '</b></td>' + sellers.map(s => '<td class="num">' + (r.by[s.id] ? eur(r.by[s.id]) : '') + '</td>').join('') + '<td class="num"><b>' + eur(r.total) + '</b></td><td class="num">' + eur(r.cum) + '</td></tr>').join('');
   const difRows = df.map((r, i) => '<tr class="clickable" onclick="caDiffuseDetail(\'' + r.ym + '\')"><td><b>' + MONTHS[i] + '</b></td><td class="num">' + eur(r.billed) + '</td><td class="num">' + eur(r.adj) + '</td><td class="num"><b>' + eur(r.total) + '</b></td><td class="num">' + eur(r.cum) + '</td></tr>').join('');
-  return '<div class="box"><div class="box-h"><h2>Suivi mensuel · ' + y + '</h2><div>' + yearSel + ' <button class="button is-light-orange" onclick="exportCA()">Export CSV</button></div></div>' +
+  return vCompare(y, yearSel) + '<div class="box"><div class="box-h"><h2>Suivi mensuel · ' + y + '</h2><div><button class="button is-light-orange" onclick="exportCA()">Export CSV</button></div></div>' +
     '<p class="help mb-3">Début de mois : clôturez le mois précédent pour figer le CA signé et le CA diffusé. Si une donnée est modifiée après clôture, le mois est signalé.</p>' +
     '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Mois</th><th class="num">CA signé (calcul)</th><th class="num">CA diffusé (calcul)</th><th class="num">CA signé figé</th><th class="num">CA diffusé figé</th><th>Statut</th><th></th></tr></thead><tbody>' + suivi + '</tbody>' +
     '<tfoot><tr><td>Total</td><td class="num">' + eur(sg[11].cum) + '</td><td class="num">' + eur(df[11].cum) + '</td><td colspan="4"></td></tr></tfoot></table></div></div>' +
@@ -959,19 +1261,26 @@ function importJSON(file) {
 function resetAll() { if (!confirm('Effacer TOUTES les données ? Pensez à exporter avant.') || !confirm('Confirmer la suppression définitive.')) return; db = Store.blank(); meId = 'u1'; Store.save(); renderAll(); if (window.redrawSettings) window.redrawSettings(); }
 function loadDemo() {
   if (db.contracts.length && !confirm('Ajouter des données de démonstration aux données existantes ?')) return;
-  const t = today(), y = t.slice(0, 4);
+  const t = today();
   const mk = (client, sellerId, ago, type, label, amt, filed) => { const d = addDays(t, -ago), c = { id: uid(), odp: assignOdp(d), client, sellerId, signedDate: d, type, label, amountHT: amt, driveUrl: '', filed: !!filed, notes: '', createdAt: new Date().toISOString(), createdBy: 'Démo' }; db.contracts.push(c); return c; };
-  const cp = (c, s, e, a, ant) => { const x = { id: uid(), contractId: c.id, label: c.label, start: s, end: e, amountHT: a, antenne: ant, sentDate: ant !== 'none' ? addDays(t, -5) : '', confirmedDate: ant === 'confirmed' ? addDays(t, -3) : '' }; db.campaigns.push(x); return x; };
+  const cp = (c, s, e, a, ant, spots) => { const x = { id: uid(), contractId: c.id, label: c.label, start: s, end: e, amountHT: a, spots: spots || 0, antenne: ant, sentDate: ant !== 'none' ? addDays(t, -5) : '', confirmedDate: ant === 'confirmed' ? addDays(t, -3) : '' }; db.campaigns.push(x); return x; };
   const iv = (c, camp, no, ago, ht, rate, pays) => db.invoices.push({ id: uid(), contractId: c.id, campaignId: camp ? camp.id : '', invoiceNo: no, invoiceDate: addDays(t, -ago), amountHT: ht, tva: 20, commRate: rate, payments: (pays || []).map(p => ({ id: uid(), date: addDays(t, -p[0]), mode: p[1], amount: p[2], ref: '' })), commPaid: [], note: '' });
+  const y = +t.slice(0, 4);
   const a = mk('[DÉMO] Boulangerie Azur', 's2', 40, 'publicite', 'Campagne spots printemps', 6000, true);
-  const ca = cp(a, addDays(t, -30), addDays(t, 60), 6000, 'confirmed'); iv(a, ca, 'DEMO-001', 30, 6000, 10, [[10, 'VIRMT', 3600]]);
+  const ca = cp(a, addDays(t, -30), addDays(t, 60), 6000, 'confirmed', 420); iv(a, ca, 'DEMO-001', 30, 6000, 10, [[10, 'VIRMT', 3600]]);
   const b = mk('[DÉMO] Garage Riviera', 's1', 20, 'sponsoring', 'Sponsoring météo — année', 12000, true);
-  const cb = cp(b, y + '-01-01', y + '-12-31', 12000, 'sent'); iv(b, cb, 'DEMO-002', 15, 12000, 0, [[8, 'CHQ', 14400]]);
+  const cb = cp(b, y + '-01-01', y + '-12-31', 12000, 'sent', 2600); iv(b, cb, 'DEMO-002', 15, 12000, 0, [[8, 'CHQ', 14400]]);
   db.bookings.push({ id: uid(), contractId: b.id, emission: 'Météo du matin', slot: 'Lun–Ven 7h30', start: y + '-01-01', end: y + '-12-31', status: 'reserve' });
   const c = mk('[DÉMO] Hôtel Beau Rivage', 's2', 5, 'publicite', 'Campagne fin de saison', 3000, false);
-  cp(c, addDays(t, 5), addDays(t, 35), 3000, 'none');
+  cp(c, addDays(t, 5), addDays(t, 35), 3000, 'none', 200);
   const d = mk('[DÉMO] Opticien du Port', 's1', 65, 'publicite', 'Pack 2 mois', 2400, true);
-  const cd = cp(d, addDays(t, -60), addDays(t, -1), 2400, 'confirmed'); iv(d, cd, 'DEMO-003', 55, 2400, 0, [[40, 'PRELVT', 2880]]);
+  const cd = cp(d, addDays(t, -60), addDays(t, -1), 2400, 'confirmed', 360); iv(d, cd, 'DEMO-003', 55, 2400, 0, [[40, 'PRELVT', 2880]]);
+  /* Historique (année précédente et début d'année) pour visualiser les comparatifs */
+  [[400, '[DÉMO] Garage Riviera', 's1', 9000, 540], [380, '[DÉMO] Boulangerie Azur', 's2', 4800, 300], [350, '[DÉMO] Opticien du Port', 's1', 2400, 150], [330, '[DÉMO] Hôtel Beau Rivage', 's2', 3500, 210],
+   [300, '[DÉMO] Boulangerie Azur', 's2', 2000, 120], [270, '[DÉMO] Garage Riviera', 's1', 3000, 180], [240, '[DÉMO] Opticien du Port', 's1', 2800, 170], [200, '[DÉMO] Hôtel Beau Rivage', 's2', 4200, 250], [120, '[DÉMO] Boulangerie Azur', 's2', 3200, 190]].forEach((h, n) => {
+    const k = mk(h[1], h[2], h[0], 'publicite', 'Campagne ' + (n + 1), h[3], true), s = addDays(t, -h[0] + 10), e = addDays(s, 60), cc = cp(k, s, e, h[3], 'confirmed', h[4]);
+    iv(k, cc, 'DEMO-H' + (n + 1), h[0] - 8, h[3], h[2] === 's2' ? 10 : 0, [[h[0] - 30, 'VIRMT', round2(h[3] * 1.2)]]);
+  });
   audit('Démo', 'Données', '', 'Données de démonstration chargées'); commit(); toast('Données de démonstration chargées');
   if (window.redrawSettings) window.redrawSettings();
 }
