@@ -14,107 +14,111 @@
    Déclinaisons de l'orange : 100 / 75 / 50 / 25 %
    ========================================================== */
 :root{
-  --orange:      #F59C00;
-  --orange-75:   #F8B540;
-  --orange-50:   #FACE80;
-  --orange-25:   #FDE6BF;
-  --orange-dark: #D08600;
-
-  --ink:         #33291A;               /* texte brun très foncé */
-  --ink-soft:    rgba(51,41,26,.55);
-  --hdr-bg:      #FFFBF4;               /* header : crème très pâle */
-  --page-bg:     #F7F4EE;               /* fond de page neutre chaud */
-  --card:        #FFFFFF;
-  --border:      rgba(51,41,26,.12);
-  --hdr-h:       116px;
+  --orange:#F59C00; --orange-75:#F8B540; --orange-50:#FACE80; --orange-25:#FDE6BF; --orange-dark:#D08600;
+  --ink:#33291A; --ink-soft:rgba(51,41,26,.55);
+  --hdr-bg:#FFFBF4; --page-bg:#F7F4EE; --card:#FFFFFF; --border:rgba(51,41,26,.12);
+  --danger:#C62828; --ok:#2E7D32; --hdr-h:116px;
 }
-*{margin:0;padding:0;box-sizing:border-box;}
 html,body{background:var(--page-bg);}
-body{color:var(--ink);min-height:100vh;font-family:'Inter',sans-serif;}
+body{color:var(--ink);min-height:100vh;font-family:'Inter',sans-serif;font-size:14px;}
 
 /* ───────────────────────── HEADER ───────────────────────── */
-.hdr{
-  background:var(--hdr-bg);
-  height:var(--hdr-h);
-  display:grid;
-  grid-template-columns:240px 1fr auto auto;
-  align-items:stretch;
-  position:sticky;top:0;z-index:100;overflow:hidden;
-  border-bottom:3px solid var(--orange);
-  box-shadow:0 2px 8px rgba(51,41,26,.06);
-}
-
-/* Bloc logo */
-.hdr-brand{
-  display:flex;align-items:center;justify-content:center;gap:12px;
-  padding:0 20px;
-  border-right:1px solid var(--border);
-  overflow:hidden;
-}
+.hdr{background:var(--hdr-bg);height:var(--hdr-h);display:grid;grid-template-columns:240px 1fr auto auto;align-items:stretch;
+  position:sticky;top:0;z-index:100;overflow:hidden;border-bottom:3px solid var(--orange);box-shadow:0 2px 8px rgba(51,41,26,.06);}
+.hdr-brand{display:flex;align-items:center;justify-content:center;gap:12px;padding:0 20px;border-right:1px solid var(--border);overflow:hidden;}
 .hdr-brand svg{width:48px;height:48px;flex-shrink:0;display:block;}
-.hdr-brand-txt{
-  display:flex;flex-direction:column;line-height:1;
-  font-family:'Barlow Condensed',sans-serif;font-weight:800;
-  font-size:20px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink);
-}
+.hdr-brand-txt{display:flex;flex-direction:column;line-height:1;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:20px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink);}
 .hdr-brand-txt span{color:var(--orange);}
-
-/* Navigation */
 .hdr-nav{display:flex;align-items:stretch;justify-content:center;flex:1;}
-.nav-btn{
-  position:relative;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:7px;
-  padding:0 22px;border:none;background:transparent;
-  font-family:'Inter',sans-serif;font-size:12px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;
-  color:var(--ink-soft);cursor:pointer;
-  transition:color .18s,background .18s;
-  border-bottom:3px solid transparent;white-space:nowrap;
-}
+.nav-btn{position:relative;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:7px;padding:0 22px;border:none;background:transparent;
+  font-family:'Inter',sans-serif;font-size:12px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:var(--ink-soft);cursor:pointer;
+  transition:color .18s,background .18s;border-bottom:3px solid transparent;white-space:nowrap;}
 .nav-btn::after{content:'';position:absolute;right:0;top:20%;bottom:20%;width:1px;background:var(--border);}
-.nav-btn:last-child::after{display:none;}
+.hdr-nav .nav-btn:last-child::after{display:none;}
 .nav-btn:hover{color:var(--ink);background:var(--orange-25);}
 .nav-btn.active{color:var(--orange-dark);background:var(--orange-25);border-bottom-color:var(--orange);}
 .nav-btn-ico{font-size:24px;line-height:1;}
 .nav-btn-txt{white-space:normal;text-align:center;line-height:1.2;}
-
-/* Bouton à rayures (ex-Incidents) */
+.nav-btn.hidden{display:none;}
 .nav-btn-stripe{position:relative;overflow:hidden;border-left:1px solid var(--border);}
-.nav-btn-stripe::before{
-  content:'';position:absolute;inset:0;pointer-events:none;z-index:0;
-  background:repeating-linear-gradient(45deg,rgba(245,156,0,.14) 0px,rgba(245,156,0,.14) 10px,transparent 10px,transparent 20px);
-}
+.nav-btn-stripe::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;background:repeating-linear-gradient(45deg,rgba(245,156,0,.14) 0px,rgba(245,156,0,.14) 10px,transparent 10px,transparent 20px);}
 .nav-btn-stripe .nav-btn-ico,.nav-btn-stripe .nav-btn-txt{position:relative;z-index:1;}
+.badge{position:absolute;top:22px;right:14px;z-index:2;min-width:18px;height:18px;border-radius:9px;background:var(--danger);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 5px;}
+.badge:empty{display:none;}
+.hdr-right{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;padding:0 24px;border-left:1px solid var(--border);}
+.hdr-clock{font-family:'Share Tech Mono',monospace;font-size:38px;font-weight:700;color:var(--ink);letter-spacing:.02em;white-space:nowrap;line-height:1;}
+.hdr-user{display:flex;align-items:center;gap:8px;}
+.hdr-user select{font-family:'Inter',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink);border:1px solid var(--border);border-radius:6px;background:#fff;padding:3px 6px;max-width:150px;}
+.hdr-user .gear{border:1px solid var(--border);background:#fff;border-radius:6px;width:26px;height:24px;cursor:pointer;font-size:13px;line-height:1;}
+.hdr-user .gear:hover{background:var(--orange-25);}
+.hdr-role{font-size:10px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:var(--ink-soft);}
 
-/* Bloc droit : horloge + statut */
-.hdr-right{
-  display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;
-  padding:0 24px;border-left:1px solid var(--border);
-}
-.hdr-clock{
-  font-family:'Share Tech Mono',monospace;font-size:38px;font-weight:700;
-  color:var(--ink);letter-spacing:.02em;white-space:nowrap;
-}
-.hdr-status{display:flex;align-items:center;gap:8px;}
-.hdr-status-dot{width:8px;height:8px;border-radius:50%;background:var(--orange-dark);flex-shrink:0;}
-.hdr-status-name{font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:var(--ink);line-height:1;}
-.hdr-status-label{font-size:10px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:var(--ink-soft);margin-top:2px;}
+/* ───────────────────────── COMPOSANTS ───────────────────────── */
+.modal{z-index:300;}
+.modal-card{width:min(720px,94vw);}
+.modal-card.wide{width:min(1100px,96vw);}
+.modal-card-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.04em;font-size:22px;}
+.modal-card-head{border-bottom:3px solid var(--orange);}
+.button.is-primary{background:var(--orange);color:#fff;border-color:transparent;font-weight:700;}
+.button.is-primary:hover,.button.is-primary:focus{background:var(--orange-dark);color:#fff;}
+.button.is-light-orange{background:var(--orange-25);color:var(--orange-dark);border-color:var(--orange-50);font-weight:700;}
+.button.is-light-orange:hover{background:var(--orange-50);}
+.tag.o25{background:var(--orange-25);color:var(--orange-dark);font-weight:700;}
+.tag.ok{background:#E3F1E4;color:var(--ok);font-weight:700;}
+.tag.ko{background:#FBE3E1;color:var(--danger);font-weight:700;}
+.tag.grey{background:#EEEAE2;color:var(--ink-soft);font-weight:700;}
 
-/* ───────────────────────── PAGES ───────────────────────── */
-.page{display:none;padding:36px 40px;}
+.page{display:none;padding:28px 40px 60px;}
 .page.active{display:block;}
-.placeholder{
-  background:var(--card);
-  border:2px dashed var(--border);
-  border-radius:8px;height:320px;
-  display:flex;align-items:center;justify-content:center;
-  color:var(--orange-dark);font-family:'Share Tech Mono',monospace;font-size:13px;
-}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:22px;}
+.kpi{background:var(--card);border:1px solid var(--border);border-top:3px solid var(--orange);border-radius:8px;padding:14px 16px;}
+.kpi.danger{border-top-color:var(--danger);}
+.kpi-l{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);}
+.kpi-v{font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:800;line-height:1.1;margin-top:2px;}
+.kpi-s{font-size:11.5px;color:var(--ink-soft);}
+.box{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:18px;margin-bottom:20px;}
+.box-h{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap;}
+.box-h h2{font-family:'Barlow Condensed',sans-serif;font-size:21px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;}
+.box-h .sub{font-size:12px;color:var(--ink-soft);}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+.bar .input,.bar .select select{font-size:13px;}
+.table{font-size:12.5px;}
+.table th{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);white-space:nowrap;background:#FFFBF4;}
+.table td{vertical-align:middle;}
+.table tr.clickable{cursor:pointer;}
+.table tr.clickable:hover td{background:var(--orange-25);}
+.table tfoot td,.table tfoot th{font-weight:800;background:#FFFBF4;color:var(--ink);}
+.num{text-align:right !important;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.tw{overflow-x:auto;}
+.prog{width:90px;height:8px;border-radius:4px;background:#EEEAE2;overflow:hidden;display:inline-block;vertical-align:middle;}
+.prog>i{display:block;height:100%;background:var(--orange);}
+.prog.full>i{background:var(--ok);}
+.aq-none{color:var(--ink-soft);}
+.aq-sent{color:var(--danger);}                 /* envoyée à l'antenne : rouge */
+.aq-conf{color:var(--danger);font-weight:800;} /* confirmée par l'antenne : rouge gras */
+.al{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border-radius:6px;margin-bottom:8px;border-left:4px solid var(--orange);background:#FFFBF4;cursor:pointer;}
+.al.danger{border-left-color:var(--danger);background:#FDF0EE;}
+.al.info{border-left-color:var(--orange-50);}
+.al:hover{filter:brightness(.97);}
+.al b{font-size:12px;}
+.step{display:grid;grid-template-columns:32px 30px 1fr auto;gap:8px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--border);}
+.step:last-child{border-bottom:none;}
+.step .ic{font-size:16px;text-align:center;}
+.step small{color:var(--ink-soft);}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+@media(max-width:1000px){.grid2{grid-template-columns:1fr;}}
+.mnav{display:flex;align-items:center;gap:10px;}
+.mnav .ml{font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:800;text-transform:uppercase;min-width:200px;text-align:center;}
+.muted{color:var(--ink-soft);}
+.empty{padding:26px;text-align:center;color:var(--ink-soft);border:2px dashed var(--border);border-radius:8px;}
+.toast{position:fixed;right:20px;bottom:20px;z-index:500;max-width:380px;box-shadow:0 6px 20px rgba(0,0,0,.18);}
+.help{font-size:11.5px;}
 </style>
 </head>
 <body>
 
 <!-- ======================= HEADER ======================= -->
 <div class="hdr">
-
   <div class="hdr-brand">
     <!-- Logo provisoire (à remplacer par le logo officiel) -->
     <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -125,54 +129,862 @@ body{color:var(--ink);min-height:100vh;font-family:'Inter',sans-serif;}
   </div>
 
   <nav class="hdr-nav">
-    <button class="nav-btn active" onclick="showPage('accueil',this)"><span class="nav-btn-ico">&#127968;</span><span class="nav-btn-txt">Accueil</span></button>
-    <button class="nav-btn" onclick="showPage('page2',this)"><span class="nav-btn-ico">&#128188;</span><span class="nav-btn-txt">Sponsors</span></button>
-    <button class="nav-btn" onclick="showPage('page3',this)"><span class="nav-btn-ico">&#129309;</span><span class="nav-btn-txt">Clients</span></button>
-    <button class="nav-btn" onclick="showPage('page4',this)"><span class="nav-btn-ico">&#128197;</span><span class="nav-btn-txt">Planning</span></button>
-    <button class="nav-btn" onclick="showPage('page5',this)"><span class="nav-btn-ico">&#128200;</span><span class="nav-btn-txt">Reporting</span></button>
+    <button class="nav-btn active" data-page="accueil"><span class="nav-btn-ico">&#127968;</span><span class="nav-btn-txt">Accueil</span></button>
+    <button class="nav-btn" data-page="contrats"><span class="nav-btn-ico">&#128196;</span><span class="nav-btn-txt">Contrats</span></button>
+    <button class="nav-btn" data-page="campagnes"><span class="nav-btn-ico">&#128197;</span><span class="nav-btn-txt">Campagnes</span></button>
+    <button class="nav-btn" data-page="encaissements"><span class="nav-btn-ico">&#128182;</span><span class="nav-btn-txt">Encaissements</span></button>
+    <button class="nav-btn" data-page="ca" id="nav-ca"><span class="nav-btn-ico">&#128200;</span><span class="nav-btn-txt">CA &amp; Clôture</span></button>
   </nav>
 
-  <button class="nav-btn nav-btn-stripe" onclick="showPage('page6',this)">
-    <span class="nav-btn-ico">&#9888;&#65039;</span><span class="nav-btn-txt">Alertes</span>
+  <button class="nav-btn nav-btn-stripe" data-page="alertes">
+    <span class="nav-btn-ico">&#9888;&#65039;</span><span class="nav-btn-txt">Alertes</span><span class="badge" id="badge"></span>
   </button>
 
   <div class="hdr-right">
     <div class="hdr-clock" id="clk">--:--:--</div>
-    <div class="hdr-status">
-      <span class="hdr-status-dot"></span>
-      <div>
-        <div class="hdr-status-name">Commercial Tool</div>
-        <div class="hdr-status-label">En attente</div>
-      </div>
+    <div class="hdr-user">
+      <select id="userSel" aria-label="Profil"></select>
+      <button class="gear" id="gearBtn" title="Paramètres">&#9881;&#65039;</button>
     </div>
+    <div class="hdr-role" id="roleLbl"></div>
   </div>
 </div>
 
-<!-- ======================= PAGES (vides) ======================= -->
+<!-- ======================= PAGES ======================= -->
 <main class="container is-fluid">
-  <section id="accueil" class="page active"><div class="placeholder">[ Accueil ]</div></section>
-  <section id="page2"   class="page"><div class="placeholder">[ Sponsors ]</div></section>
-  <section id="page3"   class="page"><div class="placeholder">[ Clients ]</div></section>
-  <section id="page4"   class="page"><div class="placeholder">[ Planning ]</div></section>
-  <section id="page5"   class="page"><div class="placeholder">[ Reporting ]</div></section>
-  <section id="page6"   class="page"><div class="placeholder">[ Alertes ]</div></section>
+  <section id="accueil" class="page active"></section>
+  <section id="contrats" class="page"></section>
+  <section id="campagnes" class="page"></section>
+  <section id="encaissements" class="page"></section>
+  <section id="ca" class="page"></section>
+  <section id="alertes" class="page"></section>
 </main>
-
 <script>
-/* Horloge */
-function updateClock(){
-  document.getElementById('clk').textContent =
-    new Date().toLocaleTimeString('fr-FR',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
-}
-updateClock(); setInterval(updateClock,1000);
+'use strict';
+/* ==========================================================================
+   1. OUTILS
+   ========================================================================== */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const eur = n => (Number(n) || 0).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+const p2 = n => String(n).padStart(2, '0');
+const isoOf = d => d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
+const today = () => isoOf(new Date());
+const fdate = s => s ? s.split('-').reverse().join('/') : '—';
+const ymOf = s => (s || '').slice(0, 7);
+const MONTHS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+const ymLabel = ym => MONTHS[+ym.slice(5, 7) - 1] + ' ' + ym.slice(0, 4);
+const addDays = (s, n) => { const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + n); return isoOf(d); };
+const daysDiff = (a, b) => Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 864e5);
+const addMonths = (ym, n) => { let y = +ym.slice(0, 4), m = +ym.slice(5, 7) - 1 + n; y += Math.floor(m / 12); m = ((m % 12) + 12) % 12; return y + '-' + p2(m + 1); };
+const round2 = n => Math.round((+n || 0) * 100) / 100;
+const sum = (a, f) => a.reduce((t, x) => t + (+f(x) || 0), 0);
+const num = v => { const n = parseFloat(String(v).replace(/\s/g, '').replace(',', '.')); return isNaN(n) ? 0 : n; };
 
-/* Navigation */
-function showPage(id,btn){
-  document.querySelectorAll('.page').forEach(function(s){s.classList.remove('active');});
-  document.querySelectorAll('.nav-btn').forEach(function(b){b.classList.remove('active');});
-  var s=document.getElementById(id); if(s) s.classList.add('active');
-  if(btn) btn.classList.add('active');
+/* ==========================================================================
+   2. BASE DE DONNÉES
+   Stockage : navigateur (localStorage) via Store.
+   Pour passer en multi-utilisateurs réel : remplacer Store.load / Store.save
+   par des appels à une API (ex. Cloudflare Worker + D1). Toute la logique
+   métier ci-dessous reste identique.
+   ========================================================================== */
+const Store = {
+  KEY: 'commercial_tool_db_v1',
+  blank() {
+    return {
+      v: 1,
+      users: [
+        { id: 'u1', name: 'Nicolas', role: 'admin', sellerId: '' },
+        { id: 'u2', name: 'Nathalie', role: 'gestion', sellerId: '' },
+        { id: 'u3', name: 'Commercial 1', role: 'commercial', sellerId: 's2' }
+      ],
+      sellers: [{ id: 's1', name: 'Radio Monaco (direct)', rate: 0 }, { id: 's2', name: 'Commercial 1', rate: 10 }],
+      contracts: [], campaigns: [], bookings: [], invoices: [],
+      closures: {}, odp: {}, settings: { tva: 20, payDelay: 30 }, log: []
+    };
+  },
+  load() {
+    try { const r = localStorage.getItem(this.KEY); if (r) return Object.assign(this.blank(), JSON.parse(r)); } catch (e) { /* stockage indisponible */ }
+    return this.blank();
+  },
+  save() {
+    try { localStorage.setItem(this.KEY, JSON.stringify(db)); return true; }
+    catch (e) { toast('Sauvegarde locale impossible : exportez vos données (Paramètres)', 'danger'); return false; }
+  }
+};
+let db = Store.load();
+let meId = 'u1';
+try { meId = localStorage.getItem('commercial_tool_me') || 'u1'; } catch (e) { /* ignore */ }
+
+/* ---------- Profils & droits ---------- */
+const ROLES = { admin: 'Administrateur', gestion: 'Gestion', commercial: 'Commercial' };
+const me = () => db.users.find(u => u.id === meId) || db.users[0];
+const isAdmin = () => me().role === 'admin';
+const isMgr = () => me().role !== 'commercial';          // admin + gestion
+const seller = id => db.sellers.find(s => s.id === id);
+const sellerName = id => (seller(id) || { name: '—' }).name;
+const visContracts = () => me().role === 'commercial' ? db.contracts.filter(c => c.sellerId === me().sellerId) : db.contracts;
+const visIds = () => new Set(visContracts().map(c => c.id));
+const contractOf = id => db.contracts.find(c => c.id === id);
+
+/* ---------- Journal d'audit ---------- */
+function audit(action, entity, ref, detail) {
+  db.log.unshift({ ts: new Date().toISOString(), user: me().name, action, entity, ref: ref || '', detail: detail || '' });
+  if (db.log.length > 1000) db.log.length = 1000;
 }
+function commit() { Store.save(); renderAll(); }
+
+/* ==========================================================================
+   3. RÈGLES MÉTIER
+   ========================================================================== */
+/* ---- N° d'ODP : AAAA-#### séquentiel par année ---- */
+const fmtOdp = (y, n) => y + '-' + String(n).padStart(4, '0');
+function assignOdp(signedDate) {
+  const y = signedDate.slice(0, 4);
+  let n = (db.odp[y] || 0) + 1;
+  while (db.contracts.some(c => c.odp === fmtOdp(y, n))) n++;   // jamais de doublon
+  db.odp[y] = n;
+  return fmtOdp(y, n);
+}
+
+/* ---- Contrat ---- */
+const campsOf = c => db.campaigns.filter(x => x.contractId === c.id);
+const invsOf = c => db.invoices.filter(x => x.contractId === c.id);
+const bksOf = c => db.bookings.filter(x => x.contractId === c.id);
+
+/* Les 8 étapes de votre process, dans le même ordre */
+function stepsOf(c) {
+  const camps = campsOf(c), invs = invsOf(c), bks = bksOf(c), sp = c.type === 'sponsoring';
+  const sent = camps.filter(x => x.antenne !== 'none').length, conf = camps.filter(x => x.antenne === 'confirmed').length;
+  const closed = db.closures[ymOf(c.signedDate)];
+  return [
+    { k: 1, label: 'Contrat rangé dans le dossier Drive', status: c.filed ? 'done' : 'todo', detail: c.driveUrl ? 'Lien renseigné' : '' },
+    { k: 2, label: 'CA signé enregistré à la date de signature', status: 'done', detail: ymLabel(ymOf(c.signedDate)) },
+    { k: 3, label: "N° d'ODP attribué pour la facturation", status: c.odp ? 'done' : 'todo', detail: c.odp || '' },
+    { k: 4, label: 'Campagnes enregistrées au suivi', status: camps.length ? 'done' : 'todo', detail: camps.length + ' ligne(s)' },
+    { k: 5, label: 'Émissions sponsorisées réservées', status: sp ? (bks.length ? 'done' : 'todo') : 'na', detail: sp ? bks.length + ' réservation(s)' : 'Sans objet (hors sponsoring)' },
+    { k: 6, label: 'Encaissement enregistré (campagne placée ou dates connues)', status: invs.length ? 'done' : 'todo', detail: invs.length + ' ligne(s)' },
+    { k: 7, label: "Placée dans Aquira, envoyée puis confirmée par l'antenne", status: !camps.length ? 'todo' : conf === camps.length ? 'done' : sent > 0 ? 'partial' : 'todo', detail: camps.length ? sent + '/' + camps.length + ' envoyée(s) · ' + conf + ' confirmée(s)' : '' },
+    { k: 8, label: 'CA signé reporté au suivi mensuel (clôture du mois)', status: closed ? 'done' : 'todo', detail: closed ? 'Clôturé le ' + fdate(closed.closedAt.slice(0, 10)) : 'Mois non clôturé' }
+  ];
+}
+function progressOf(c) {
+  const st = stepsOf(c).filter(s => s.status !== 'na');
+  const done = st.filter(s => s.status === 'done').length;
+  return { done, total: st.length, pct: Math.round(100 * done / st.length) };
+}
+
+/* ---- Facturation / encaissements ---- */
+const invTva = i => (i.tva === undefined || i.tva === null || i.tva === '') ? db.settings.tva : +i.tva;
+const invTTC = i => round2(i.amountHT * (1 + invTva(i) / 100));
+const invPaid = i => round2(sum(i.payments || [], p => p.amount));
+const invReste = i => round2(invTTC(i) - invPaid(i));
+const invByMode = (i, m) => round2(sum((i.payments || []).filter(p => p.mode === m), p => p.amount));
+const invOverdue = i => !!i.invoiceNo && invReste(i) > 0.005 && addDays(i.invoiceDate, db.settings.payDelay) < today();
+function invStatus(i) {
+  if (!i.invoiceNo) return { k: 'planned', l: 'Planifiée', cls: 'grey' };
+  if (invReste(i) <= 0.005) return { k: 'paid', l: 'Soldée', cls: 'ok' };
+  if (invOverdue(i)) return { k: 'late', l: 'En retard', cls: 'ko' };
+  if (invPaid(i) > 0) return { k: 'partial', l: 'Partielle', cls: 'o25' };
+  return { k: 'due', l: 'À encaisser', cls: 'o25' };
+}
+/* Commission acquise = taux × HT encaissé (au prorata des règlements reçus) */
+function commAcquired(i) {
+  if (!i.invoiceNo) return 0;
+  const ttc = invTTC(i), ratio = ttc ? Math.min(1, invPaid(i) / ttc) : 0;
+  return round2(i.amountHT * ratio * (+i.commRate || 0) / 100);
+}
+const commPaid = i => round2(sum(i.commPaid || [], p => p.amount));
+const commDue = i => round2(commAcquired(i) - commPaid(i));
+
+/* ---- Diffusion : répartition d'une campagne au prorata des jours ---- */
+function allocByMonth(camp) {
+  const out = {};
+  if (!camp.start || !camp.end || camp.end < camp.start) return out;
+  const s = new Date(camp.start + 'T00:00:00'), e = new Date(camp.end + 'T00:00:00');
+  const days = Math.round((e - s) / 864e5) + 1, per = (+camp.amountHT || 0) / days;
+  for (let i = 0; i < days; i++) {
+    const d = new Date(s); d.setDate(s.getDate() + i);
+    const k = d.getFullYear() + '-' + p2(d.getMonth() + 1);
+    out[k] = (out[k] || 0) + per;
+  }
+  return out;
+}
+
+/* ---- CA SIGNÉ (tableau « CA signé par mois et par année ») ---- */
+function caSigneYear(y) {
+  const rows = Array.from({ length: 12 }, (_, i) => ({ ym: y + '-' + p2(i + 1), by: {}, total: 0, cum: 0, items: [] }));
+  db.contracts.filter(c => c.signedDate.startsWith(String(y))).forEach(c => {
+    const r = rows[+c.signedDate.slice(5, 7) - 1];
+    r.by[c.sellerId] = (r.by[c.sellerId] || 0) + c.amountHT;
+    r.total += c.amountHT; r.items.push(c);
+  });
+  let cum = 0; rows.forEach(r => { cum += r.total; r.cum = cum; });
+  return rows;
+}
+
+/* ---- CA DIFFUSÉ = facturé du mois + « à rajouter » ---- */
+function caDiffuseYear(y) {
+  const rows = Array.from({ length: 12 }, (_, i) => ({ ym: y + '-' + p2(i + 1), billed: 0, adj: 0, total: 0, cum: 0, detail: [] }));
+  db.contracts.forEach(c => {
+    const camps = campsOf(c), billed = {}, diff = {};
+    invsOf(c).filter(i => i.invoiceNo).forEach(i => { const k = ymOf(i.invoiceDate); billed[k] = (billed[k] || 0) + i.amountHT; });
+    camps.forEach(cp => { const a = allocByMonth(cp); Object.keys(a).forEach(k => { diff[k] = (diff[k] || 0) + a[k]; }); });
+    new Set([...Object.keys(billed), ...Object.keys(diff)]).forEach(k => {
+      if (!k.startsWith(String(y))) return;
+      const b = billed[k] || 0, d = diff[k] || 0, adj = camps.length ? d - b : 0;
+      if (Math.abs(b) < 0.005 && Math.abs(adj) < 0.005) return;
+      const r = rows[+k.slice(5, 7) - 1];
+      r.billed += b; r.adj += adj; r.total += b + adj; r.detail.push({ c, b, d, adj });
+    });
+  });
+  let cum = 0; rows.forEach(r => { r.billed = round2(r.billed); r.adj = round2(r.adj); r.total = round2(r.total); cum += r.total; r.cum = round2(cum); });
+  return rows;
+}
+const caSigneMonth = ym => round2(sum(db.contracts.filter(c => ymOf(c.signedDate) === ym), c => c.amountHT));
+const caDiffuseMonth = ym => caDiffuseYear(+ym.slice(0, 4))[+ym.slice(5, 7) - 1].total;
+
+/* ---- Clôture mensuelle (point 8) ---- */
+function closeMonth(ym) {
+  const cur = today().slice(0, 7);
+  if (ym >= cur) return toast('Un mois ne peut être clôturé qu\'une fois terminé.', 'danger');
+  if (db.closures[ym] && !confirm('Ce mois est déjà clôturé. Remplacer le relevé figé par les chiffres actuels ?')) return;
+  const warns = [];
+  const pending = db.campaigns.filter(cp => ymOf(cp.start) === ym && cp.antenne !== 'confirmed').length;
+  if (pending) warns.push(pending + ' campagne(s) du mois non confirmée(s) par l\'antenne');
+  const noInv = db.invoices.filter(i => ymOf(i.invoiceDate) === ym && !i.invoiceNo).length;
+  if (noInv) warns.push(noInv + ' facture(s) du mois sans n° de facture');
+  if (warns.length && !confirm('Points non résolus :\n- ' + warns.join('\n- ') + '\n\nClôturer quand même ' + ymLabel(ym) + ' ?')) return;
+  db.closures[ym] = { closedAt: new Date().toISOString(), by: me().name, caSigne: caSigneMonth(ym), caDiffuse: caDiffuseMonth(ym) };
+  audit('Clôture', 'Mois', ym, 'CA signé ' + eur(db.closures[ym].caSigne) + ' · CA diffusé ' + eur(db.closures[ym].caDiffuse));
+  commit(); toast('Mois clôturé : ' + ymLabel(ym));
+}
+function reopenMonth(ym) {
+  if (!isAdmin()) return toast('Seul un administrateur peut rouvrir un mois.', 'danger');
+  if (!confirm('Rouvrir ' + ymLabel(ym) + ' ? Le relevé figé sera supprimé.')) return;
+  delete db.closures[ym]; audit('Réouverture', 'Mois', ym, ''); commit();
+}
+const closureDrift = ym => { const c = db.closures[ym]; return c && (Math.abs(c.caSigne - caSigneMonth(ym)) > 0.01 || Math.abs(c.caDiffuse - caDiffuseMonth(ym)) > 0.01); };
+
+/* ---- Alertes ---- */
+function computeAlerts() {
+  const A = [], t = today(), cur = t.slice(0, 7), day = +t.slice(8, 10);
+  const vis = visContracts(), ids = new Set(vis.map(c => c.id));
+  const push = (lvl, txt, cid) => A.push({ lvl, txt, cid });
+  vis.forEach(c => {
+    const st = stepsOf(c), tag = (c.odp || '—') + ' · ' + c.client;
+    const age = daysDiff(c.signedDate, t);
+    const late = st.filter(s => [1, 4, 5, 6].includes(s.k) && s.status === 'todo' && !(s.k === 6 && !campsOf(c).length)).map(s => s.k);
+    if (age >= 3 && late.length) push('warning', tag + ' : étape(s) ' + late.join(', ') + ' à compléter (signé il y a ' + age + ' j)', c.id);
+    const camps = campsOf(c);
+    if (camps.length) {
+      const ecart = round2(sum(camps, x => x.amountHT) - c.amountHT);
+      if (Math.abs(ecart) > 0.01) push('danger', tag + ' : campagnes (' + eur(sum(camps, x => x.amountHT)) + ') ≠ contrat (' + eur(c.amountHT) + ')', c.id);
+    }
+    const invs = invsOf(c);
+    if (invs.length) {
+      const e2 = round2(sum(invs, i => i.amountHT) - c.amountHT);
+      if (e2 > 0.01) push('danger', tag + ' : facturé HT supérieur au montant du contrat (+' + eur(e2) + ')', c.id);
+    }
+    if (c.type === 'sponsoring' && !bksOf(c).length && age >= 1) push('warning', tag + ' : sponsoring sans réservation d\'émission', c.id);
+    if (camps.some(x => x.antenne !== 'none') && !invs.length) push('warning', tag + ' : campagne placée mais aucun encaissement enregistré', c.id);
+  });
+  db.campaigns.filter(x => ids.has(x.contractId)).forEach(cp => {
+    const c = contractOf(cp.contractId), tag = (c.odp || '—') + ' · ' + c.client + ' · ' + cp.label;
+    const d = daysDiff(t, cp.start);
+    if (cp.antenne === 'none' && cp.end >= t && d <= 7) push(d <= 0 ? 'danger' : 'warning', tag + (d <= 0 ? ' : en cours de diffusion mais non placée dans Aquira' : ' : démarre dans ' + d + ' j, non placée'), c.id);
+    if (cp.antenne === 'sent' && cp.sentDate && daysDiff(cp.sentDate, t) >= 2) push('warning', tag + ' : confirmation antenne attendue depuis le ' + fdate(cp.sentDate), c.id);
+  });
+  db.invoices.filter(i => ids.has(i.contractId)).forEach(i => {
+    const c = contractOf(i.contractId), tag = c.client + ' · ' + (i.invoiceNo ? 'facture ' + i.invoiceNo : 'facturation prévue');
+    if (invOverdue(i)) push('danger', tag + ' : impayée, reste ' + eur(invReste(i)) + ' (échéance dépassée)', c.id);
+    if (!i.invoiceNo && i.invoiceDate <= t) push('warning', tag + ' : facture à émettre (prévue le ' + fdate(i.invoiceDate) + ')', c.id);
+  });
+  if (isMgr()) {
+    if (day >= 10 && day <= 20) {
+      const nx = addMonths(cur, 1), n = db.campaigns.filter(x => ymOf(x.start) === nx).length;
+      push('info', 'Préparer ' + ymLabel(nx) + ' : ' + n + ' campagne(s) démarrent le mois prochain (le suivi du mois suivant se crée vers le 15)');
+    }
+    const prev = addMonths(cur, -1);
+    if (day <= 10 && db.contracts.length && !db.closures[prev]) push('warning', 'Clôture de ' + ymLabel(prev) + ' à faire : reporter le CA signé et le CA diffusé au suivi mensuel');
+    Object.keys(db.closures).forEach(ym => { if (closureDrift(ym)) push('danger', ymLabel(ym) + ' : chiffres modifiés depuis la clôture (relevé figé ≠ calcul actuel)'); });
+  }
+  const o = { danger: 0, warning: 1, info: 2 };
+  return A.sort((a, b) => o[a.lvl] - o[b.lvl]);
+}
+
+/* ==========================================================================
+   4. UI : modales, formulaires, toasts
+   ========================================================================== */
+function toast(msg, type) {
+  const el = document.createElement('div');
+  el.className = 'notification toast ' + (type === 'danger' ? 'is-danger' : 'is-success is-light');
+  el.textContent = msg; document.body.appendChild(el);
+  setTimeout(() => el.remove(), type === 'danger' ? 6000 : 3000);
+}
+function openModal({ title, body, buttons = [], wide = false }) {
+  const el = document.createElement('div');
+  el.className = 'modal is-active';
+  el.innerHTML = '<div class="modal-background"></div><div class="modal-card' + (wide ? ' wide' : '') + '"><header class="modal-card-head"><p class="modal-card-title">' + title +
+    '</p><button class="delete" aria-label="Fermer"></button></header><section class="modal-card-body">' + body + '</section><footer class="modal-card-foot"></footer></div>';
+  const close = () => el.remove();
+  $('.delete', el).onclick = close; $('.modal-background', el).onclick = close;
+  const foot = $('.modal-card-foot', el);
+  buttons.forEach(b => { const x = document.createElement('button'); x.className = 'button ' + (b.cls || ''); x.textContent = b.label; x.onclick = () => b.onClick(el, close); foot.appendChild(x); });
+  document.body.appendChild(el);
+  const f = $('input:not([type=hidden]),select,textarea', el); if (f) f.focus();
+  return { el, close };
+}
+const fdata = el => Object.fromEntries(new FormData($('form', el)));
+const opts = (list, val) => list.map(o => '<option value="' + esc(o.v) + '"' + (String(o.v) === String(val) ? ' selected' : '') + '>' + esc(o.l) + '</option>').join('');
+function fld(label, name, val, o = {}) {
+  const t = o.type || 'text';
+  let inp;
+  if (o.options) inp = '<div class="select is-fullwidth"><select name="' + name + '"' + (o.req ? ' required' : '') + (o.onchange ? ' onchange="' + o.onchange + '"' : '') + '>' + opts(o.options, val) + '</select></div>';
+  else if (t === 'textarea') inp = '<textarea class="textarea" rows="2" name="' + name + '">' + esc(val) + '</textarea>';
+  else inp = '<input class="input" type="' + t + '" name="' + name + '" value="' + esc(val) + '"' + (o.req ? ' required' : '') + (o.list ? ' list="' + o.list + '"' : '') + (o.step ? ' step="' + o.step + '"' : '') + (o.max ? ' max="' + o.max + '"' : '') + (o.ph ? ' placeholder="' + esc(o.ph) + '"' : '') + '>';
+  return '<div class="field"><label class="label is-small">' + label + (o.req ? ' *' : '') + '</label><div class="control">' + inp + '</div>' + (o.help ? '<p class="help">' + o.help + '</p>' : '') + '</div>';
+}
+const cols = (...c) => '<div class="columns is-multiline">' + c.map(x => '<div class="column is-half">' + x + '</div>').join('') + '</div>';
+const errBox = m => toast(m, 'danger');
+
+/* ==========================================================================
+   5. ÉTAT & ROUTAGE
+   ========================================================================== */
+let PAGE = 'accueil';
+const ST = { cf: { q: '', year: '', seller: '', type: '', status: '' }, cm: today().slice(0, 7), ef: { q: '', status: '', seller: '', year: today().slice(0, 4) }, cay: +today().slice(0, 4) };
+const ANTENNE = [{ v: 'none', l: 'Non placée' }, { v: 'sent', l: "Envoyée à l'antenne (Aquira)" }, { v: 'confirmed', l: "Confirmée par l'antenne" }];
+const ANT_CLS = { none: 'aq-none', sent: 'aq-sent', confirmed: 'aq-conf' };
+const MODES = [{ v: 'ESPECES', l: 'Espèces' }, { v: 'CHQ', l: 'Chèque' }, { v: 'VIRMT', l: 'Virement' }, { v: 'PRELVT', l: 'Prélèvement' }];
+let CM = null;   // modale contrat ouverte
+
+function renderAll() {
+  const ae = document.activeElement, aid = ae && ae.id, pos = ae && ae.selectionStart;
+  const sel = $('#userSel');
+  sel.innerHTML = db.users.map(u => '<option value="' + u.id + '"' + (u.id === me().id ? ' selected' : '') + '>' + esc(u.name) + '</option>').join('');
+  $('#roleLbl').textContent = ROLES[me().role];
+  $('#gearBtn').style.display = isAdmin() ? '' : 'none';
+  $('#nav-ca').classList.toggle('hidden', !isMgr());
+  if (PAGE === 'ca' && !isMgr()) PAGE = 'accueil';
+  $$('.page').forEach(p => p.classList.toggle('active', p.id === PAGE));
+  $$('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === PAGE));
+  const V = { accueil: vHome, contrats: vContracts, campagnes: vCampaigns, encaissements: vPay, ca: vCA, alertes: vAlerts };
+  $('#' + PAGE).innerHTML = V[PAGE]();
+  const n = computeAlerts().filter(a => a.lvl !== 'info').length;
+  $('#badge').textContent = n || '';
+  if (aid) { const nd = document.getElementById(aid); if (nd) { nd.focus(); try { nd.setSelectionRange(pos, pos); } catch (e) { /* ignore */ } } }
+  if (CM && document.body.contains(CM.el)) CM.render();
+}
+function go(p) { PAGE = p; renderAll(); window.scrollTo(0, 0); }
+const setF = (grp, k, v) => { ST[grp][k] = v; renderAll(); };
+
+/* ==========================================================================
+   6. FORMULAIRES & ACTIONS (contrat, campagne, sponsoring, facture, règlement)
+   ========================================================================== */
+/* ---------- Contrat ---------- */
+function contractForm(id) {
+  const c = id ? contractOf(id) : null;
+  const com = me().role === 'commercial';
+  const sellers = com ? db.sellers.filter(s => s.id === me().sellerId) : db.sellers;
+  const clients = [...new Set(db.contracts.map(x => x.client))].sort();
+  const y = today().slice(0, 4);
+  const body = '<form onsubmit="return false"><datalist id="dl-clients">' + clients.map(x => '<option value="' + esc(x) + '">').join('') + '</datalist>' +
+    cols(
+      fld('Client', 'client', c ? c.client : '', { req: true, list: 'dl-clients' }),
+      fld('Commercial / agence', 'sellerId', c ? c.sellerId : (sellers[0] || {}).id, { req: true, options: sellers.map(s => ({ v: s.id, l: s.name })) }),
+      fld('Date de signature', 'signedDate', c ? c.signedDate : today(), { type: 'date', req: true, max: today(), help: 'Le CA signé est comptabilisé sur le mois de cette date.' }),
+      fld('Type', 'type', c ? c.type : 'publicite', { req: true, options: [{ v: 'publicite', l: 'Publicité / campagne' }, { v: 'sponsoring', l: 'Sponsoring d\'émission' }] }),
+      fld('Libellé / type d\'achat', 'label', c ? c.label : '', { req: true, ph: 'ex. Campagne spots été' }),
+      fld('Montant HT (€)', 'amountHT', c ? c.amountHT : '', { req: true, type: 'number', step: '0.01' }),
+      fld('Lien Drive du contrat', 'driveUrl', c ? c.driveUrl : '', { type: 'url', ph: 'https://drive.google.com/…' }),
+      c && isAdmin() ? fld('N° ODP (modifiable par un administrateur)', 'odp', c.odp) :
+        '<div class="field"><label class="label is-small">N° ODP</label><p class="help">' + (c ? esc(c.odp) : 'Attribué automatiquement à l\'enregistrement : prochain n° ' + fmtOdp(y, (db.odp[y] || 0) + 1)) + '</p></div>'
+    ) + fld('Notes', 'notes', c ? c.notes : '', { type: 'textarea' }) + '</form>';
+  openModal({
+    title: c ? 'Modifier le contrat' : 'Nouveau contrat', body, buttons: [
+      { label: 'Enregistrer', cls: 'is-primary', onClick: (el, close) => saveContract(c, fdata(el), close) },
+      { label: 'Annuler', onClick: (el, close) => close() }]
+  });
+}
+function saveContract(c, f, close) {
+  const client = (f.client || '').trim(), amount = round2(num(f.amountHT));
+  if (!client) return errBox('Le client est obligatoire.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(f.signedDate || '')) return errBox('Date de signature invalide.');
+  if (f.signedDate > today()) return errBox('La date de signature ne peut pas être dans le futur.');
+  if (!(amount > 0)) return errBox('Le montant HT doit être supérieur à 0.');
+  if (!(f.label || '').trim()) return errBox('Le libellé est obligatoire.');
+  if (!seller(f.sellerId)) return errBox('Commercial / agence invalide.');
+  if (me().role === 'commercial' && f.sellerId !== me().sellerId) return errBox('Vous ne pouvez créer que vos propres contrats.');
+  const dup = db.contracts.find(x => (!c || x.id !== c.id) && x.client.toLowerCase() === client.toLowerCase() && x.signedDate === f.signedDate && Math.abs(x.amountHT - amount) < 0.01);
+  if (dup && !confirm('Un contrat identique existe déjà (' + dup.odp + '). Enregistrer quand même ?')) return;
+  if (c) {
+    if (f.odp !== undefined && f.odp.trim() !== c.odp) {
+      const o = f.odp.trim();
+      if (!/^\d{4}-\d{4}$/.test(o)) return errBox('Format ODP attendu : AAAA-####');
+      if (db.contracts.some(x => x.id !== c.id && x.odp === o)) return errBox('Ce n° d\'ODP est déjà utilisé.');
+      audit('Modification ODP', 'Contrat', c.id, c.odp + ' → ' + o); c.odp = o;
+    }
+    Object.assign(c, { client, sellerId: f.sellerId, signedDate: f.signedDate, type: f.type, label: f.label.trim(), amountHT: amount, driveUrl: f.driveUrl || '', notes: f.notes || '' });
+    audit('Modification', 'Contrat', c.id, c.odp + ' · ' + client + ' · ' + eur(amount));
+    close(); commit(); toast('Contrat modifié');
+  } else {
+    const n = { id: uid(), odp: assignOdp(f.signedDate), client, sellerId: f.sellerId, signedDate: f.signedDate, type: f.type, label: f.label.trim(), amountHT: amount, driveUrl: f.driveUrl || '', filed: false, notes: f.notes || '', createdAt: new Date().toISOString(), createdBy: me().name };
+    db.contracts.push(n); audit('Création', 'Contrat', n.id, n.odp + ' · ' + client + ' · ' + eur(amount));
+    close(); commit(); toast('Contrat créé : ODP ' + n.odp); openContract(n.id);
+  }
+}
+function delContract(id) {
+  const c = contractOf(id); if (!isAdmin() || !c) return;
+  const k = campsOf(c).length + invsOf(c).length + bksOf(c).length;
+  if (!confirm('Supprimer définitivement le contrat ' + c.odp + ' (' + c.client + ')' + (k ? ' et ses ' + k + ' ligne(s) liée(s)' : '') + ' ?\nLe n° d\'ODP ne sera pas réattribué.')) return;
+  db.campaigns = db.campaigns.filter(x => x.contractId !== id); db.invoices = db.invoices.filter(x => x.contractId !== id); db.bookings = db.bookings.filter(x => x.contractId !== id);
+  db.contracts = db.contracts.filter(x => x.id !== id);
+  audit('Suppression', 'Contrat', id, c.odp + ' · ' + c.client); if (CM) { CM.el.remove(); CM = null; } commit();
+}
+function toggleFiled(id, v) { const c = contractOf(id); if (!isMgr() || !c) return; c.filed = v; audit(v ? 'Rangé Drive' : 'Dé-rangé Drive', 'Contrat', id, c.odp); commit(); }
+
+/* ---------- Campagnes ---------- */
+function campForm(cid, id) {
+  const c = contractOf(cid), cp = id ? db.campaigns.find(x => x.id === id) : null;
+  const left = round2(c.amountHT - sum(campsOf(c).filter(x => !cp || x.id !== cp.id), x => x.amountHT));
+  const body = '<form onsubmit="return false">' + cols(
+    fld('Campagne / libellé', 'label', cp ? cp.label : c.label, { req: true }),
+    fld('Montant HT alloué (€)', 'amountHT', cp ? cp.amountHT : Math.max(left, 0), { req: true, type: 'number', step: '0.01', help: 'Reste à allouer sur le contrat : ' + eur(left) }),
+    fld('Début de diffusion', 'start', cp ? cp.start : '', { type: 'date', req: true }),
+    fld('Fin de diffusion', 'end', cp ? cp.end : '', { type: 'date', req: true }),
+    fld('Statut antenne', 'antenne', cp ? cp.antenne : 'none', { options: ANTENNE })) + '</form>';
+  openModal({
+    title: cp ? 'Modifier la campagne' : 'Nouvelle campagne', body, buttons: [
+      {
+        label: 'Enregistrer', cls: 'is-primary', onClick: (el, close) => {
+          const f = fdata(el), a = round2(num(f.amountHT));
+          if (!(f.label || '').trim()) return errBox('Libellé obligatoire.');
+          if (!f.start || !f.end) return errBox('Dates de début et de fin obligatoires.');
+          if (f.end < f.start) return errBox('La fin ne peut pas précéder le début.');
+          if (!(a > 0)) return errBox('Le montant doit être supérieur à 0.');
+          if (a > left + 0.01 && !confirm('Le total des campagnes dépassera le montant du contrat de ' + eur(a - left) + '. Continuer ?')) return;
+          const tgt = cp || { id: uid(), contractId: cid, sentDate: '', confirmedDate: '' };
+          const prev = tgt.antenne;
+          Object.assign(tgt, { label: f.label.trim(), amountHT: a, start: f.start, end: f.end, antenne: f.antenne });
+          if (f.antenne !== prev) stampAntenne(tgt);
+          if (!cp) db.campaigns.push(tgt);
+          audit(cp ? 'Modification' : 'Création', 'Campagne', tgt.id, c.odp + ' · ' + tgt.label + ' · ' + eur(a));
+          close(); commit();
+        }
+      },
+      { label: 'Annuler', onClick: (el, close) => close() }]
+  });
+}
+function stampAntenne(cp) {
+  if (cp.antenne === 'none') { cp.sentDate = ''; cp.confirmedDate = ''; }
+  if (cp.antenne === 'sent') { cp.sentDate = today(); cp.confirmedDate = ''; }
+  if (cp.antenne === 'confirmed') { if (!cp.sentDate) cp.sentDate = today(); cp.confirmedDate = today(); }
+}
+function setAntenne(id, v) {
+  const cp = db.campaigns.find(x => x.id === id); if (!cp || !isMgr()) return;
+  const from = cp.antenne; cp.antenne = v; stampAntenne(cp);
+  audit('Statut antenne', 'Campagne', id, (contractOf(cp.contractId) || {}).odp + ' · ' + cp.label + ' : ' + from + ' → ' + v); commit();
+}
+function delCampaign(id) {
+  if (!isMgr() || !confirm('Supprimer cette campagne ?')) return;
+  const cp = db.campaigns.find(x => x.id === id); db.campaigns = db.campaigns.filter(x => x.id !== id);
+  db.invoices.forEach(i => { if (i.campaignId === id) i.campaignId = ''; });
+  audit('Suppression', 'Campagne', id, cp ? cp.label : ''); commit();
+}
+
+/* ---------- Réservations de sponsoring ---------- */
+function bookForm(cid, id) {
+  const bk = id ? db.bookings.find(x => x.id === id) : null;
+  const body = '<form onsubmit="return false">' + cols(
+    fld('Émission sponsorisée', 'emission', bk ? bk.emission : '', { req: true }),
+    fld('Créneau / détails', 'slot', bk ? bk.slot : '', { ph: 'ex. lundi–vendredi 7h30' }),
+    fld('Du', 'start', bk ? bk.start : '', { type: 'date', req: true }),
+    fld('Au', 'end', bk ? bk.end : '', { type: 'date', req: true }),
+    fld('Statut', 'status', bk ? bk.status : 'reserve', { options: [{ v: 'reserve', l: 'Réservée' }, { v: 'confirme', l: 'Confirmée' }] })) + '</form>';
+  openModal({
+    title: bk ? 'Modifier la réservation' : 'Réserver une émission', body, buttons: [
+      {
+        label: 'Enregistrer', cls: 'is-primary', onClick: (el, close) => {
+          const f = fdata(el);
+          if (!(f.emission || '').trim()) return errBox('Émission obligatoire.');
+          if (!f.start || !f.end || f.end < f.start) return errBox('Dates invalides.');
+          const conflict = db.bookings.find(x => x.id !== (bk && bk.id) && x.emission.toLowerCase() === f.emission.trim().toLowerCase() && x.start <= f.end && x.end >= f.start && (x.slot || '') === (f.slot || ''));
+          if (conflict && !confirm('Cette émission est déjà réservée sur une période qui chevauche (' + (contractOf(conflict.contractId) || {}).client + '). Continuer ?')) return;
+          const tgt = bk || { id: uid(), contractId: cid };
+          Object.assign(tgt, { emission: f.emission.trim(), slot: f.slot || '', start: f.start, end: f.end, status: f.status });
+          if (!bk) db.bookings.push(tgt);
+          audit(bk ? 'Modification' : 'Création', 'Réservation', tgt.id, tgt.emission); close(); commit();
+        }
+      },
+      { label: 'Annuler', onClick: (el, close) => close() }]
+  });
+}
+function delBooking(id) { if (!isMgr() || !confirm('Supprimer cette réservation ?')) return; db.bookings = db.bookings.filter(x => x.id !== id); audit('Suppression', 'Réservation', id, ''); commit(); }
+
+/* ---------- Factures / encaissements ---------- */
+const invLeft = (c, exceptId) => round2(c.amountHT - sum(invsOf(c).filter(i => i.id !== exceptId), i => i.amountHT));
+window.refreshInvForm = function (sel) {
+  const f = sel.form, c = contractOf(sel.value); if (!c) return;
+  f.elements.campaignId.innerHTML = opts([{ v: '', l: '— Toute la commande —' }].concat(campsOf(c).map(x => ({ v: x.id, l: x.label }))), '');
+  f.elements.commRate.value = (seller(c.sellerId) || {}).rate || 0;
+  f.elements.amountHT.value = Math.max(invLeft(c), 0);
+};
+function invForm(contractId, id) {
+  if (!isMgr()) return;
+  const inv = id ? db.invoices.find(x => x.id === id) : null;
+  const cid = inv ? inv.contractId : contractId;
+  const contractOpts = db.contracts.map(c => ({ v: c.id, l: c.odp + ' · ' + c.client + ' · ' + eur(c.amountHT) }));
+  const c0 = contractOf(cid) || db.contracts[0]; if (!c0) return errBox('Créez d\'abord un contrat.');
+  const body = '<form onsubmit="return false">' + cols(
+    fld('Contrat', 'contractId', c0.id, { req: true, options: contractOpts, onchange: inv ? '' : 'refreshInvForm(this)' }),
+    fld('Campagne concernée', 'campaignId', inv ? inv.campaignId : '', { options: [{ v: '', l: '— Toute la commande —' }].concat(campsOf(c0).map(x => ({ v: x.id, l: x.label }))) }),
+    fld('N° de facture', 'invoiceNo', inv ? inv.invoiceNo : '', { help: 'Laisser vide tant que la facture n\'est pas émise (encaissement planifié).' }),
+    fld('Date de facture (ou date prévue)', 'invoiceDate', inv ? inv.invoiceDate : today(), { type: 'date', req: true }),
+    fld('Montant HT (€)', 'amountHT', inv ? inv.amountHT : Math.max(invLeft(c0), 0), { req: true, type: 'number', step: '0.01' }),
+    fld('TVA (%)', 'tva', inv ? invTva(inv) : db.settings.tva, { type: 'number', step: '0.1' }),
+    fld('Taux de commission (%)', 'commRate', inv ? inv.commRate : (seller(c0.sellerId) || {}).rate || 0, { type: 'number', step: '0.1' }),
+    fld('Note', 'note', inv ? inv.note : '')) + '</form>';
+  openModal({
+    title: inv ? 'Modifier la facture' : 'Nouvel encaissement', body, buttons: [
+      {
+        label: 'Enregistrer', cls: 'is-primary', onClick: (el, close) => {
+          const f = fdata(el), c = contractOf(f.contractId), a = round2(num(f.amountHT)), no = (f.invoiceNo || '').trim();
+          if (!c) return errBox('Contrat invalide.');
+          if (!f.invoiceDate) return errBox('Date obligatoire.');
+          if (!(a > 0)) return errBox('Montant HT > 0 obligatoire.');
+          if (no && db.invoices.some(x => x.id !== (inv && inv.id) && x.invoiceNo === no)) return errBox('Ce n° de facture existe déjà.');
+          if (inv && inv.invoiceNo && !no) return errBox('Un n° de facture déjà émis ne peut pas être retiré.');
+          const left = invLeft(c, inv && inv.id);
+          if (a > left + 0.01 && !confirm('Le total facturé dépassera le contrat de ' + eur(a - left) + '. Continuer ?')) return;
+          if (inv && invPaid(inv) > round2(a * (1 + num(f.tva) / 100)) + 0.01) return errBox('Le montant est inférieur aux règlements déjà reçus (' + eur(invPaid(inv)) + ').');
+          const tgt = inv || { id: uid(), payments: [], commPaid: [] };
+          Object.assign(tgt, { contractId: c.id, campaignId: f.campaignId || '', invoiceNo: no, invoiceDate: f.invoiceDate, amountHT: a, tva: num(f.tva), commRate: num(f.commRate), note: f.note || '' });
+          if (!inv) db.invoices.push(tgt);
+          audit(inv ? 'Modification' : 'Création', 'Facture', tgt.id, c.odp + ' · ' + (no || 'planifiée') + ' · ' + eur(a)); close(); commit();
+        }
+      },
+      { label: 'Annuler', onClick: (el, close) => close() }]
+  });
+}
+function delInvoice(id) {
+  const i = db.invoices.find(x => x.id === id); if (!i || !isMgr()) return;
+  if (i.invoiceNo && !isAdmin()) return errBox('Seul un administrateur peut supprimer une facture émise.');
+  if ((i.payments || []).length && !isAdmin()) return errBox('Cette facture a des règlements : suppression réservée à un administrateur.');
+  if (!confirm('Supprimer cette ligne d\'encaissement' + (i.invoiceNo ? ' (facture ' + i.invoiceNo + ')' : '') + ' ?')) return;
+  db.invoices = db.invoices.filter(x => x.id !== id); audit('Suppression', 'Facture', id, i.invoiceNo || 'planifiée'); commit();
+}
+function payForm(id) {
+  const i = db.invoices.find(x => x.id === id); if (!i || !isMgr()) return;
+  if (!i.invoiceNo) return errBox('Renseignez d\'abord le n° de facture avant d\'enregistrer un règlement.');
+  const body = '<form onsubmit="return false"><p class="mb-3">Facture <b>' + esc(i.invoiceNo) + '</b> · TTC ' + eur(invTTC(i)) + ' · déjà réglé ' + eur(invPaid(i)) + ' · <b>reste ' + eur(invReste(i)) + '</b></p>' + cols(
+    fld('Date du règlement', 'date', today(), { type: 'date', req: true, max: today() }),
+    fld('Mode', 'mode', 'VIRMT', { options: MODES }),
+    fld('Montant TTC (€)', 'amount', Math.max(invReste(i), 0), { type: 'number', step: '0.01', req: true }),
+    fld('Référence', 'ref', '', { ph: 'n° chèque, libellé virement…' })) + '</form>';
+  openModal({
+    title: 'Enregistrer un règlement', body, buttons: [
+      {
+        label: 'Enregistrer', cls: 'is-primary', onClick: (el, close) => {
+          const f = fdata(el), a = round2(num(f.amount));
+          if (!f.date || f.date > today()) return errBox('Date de règlement invalide (pas dans le futur).');
+          if (!(a > 0)) return errBox('Montant > 0 obligatoire.');
+          if (a > invReste(i) + 0.01) return errBox('Le règlement dépasse le reste à encaisser (' + eur(invReste(i)) + ').');
+          i.payments.push({ id: uid(), date: f.date, mode: f.mode, amount: a, ref: f.ref || '' });
+          audit('Règlement', 'Facture', i.id, i.invoiceNo + ' · ' + f.mode + ' · ' + eur(a)); close(); commit(); toast('Règlement enregistré');
+        }
+      },
+      { label: 'Annuler', onClick: (el, close) => close() }]
+  });
+}
+function delPayment(iid, pid) {
+  if (!isMgr() || !confirm('Supprimer ce règlement ?')) return;
+  const i = db.invoices.find(x => x.id === iid); i.payments = i.payments.filter(p => p.id !== pid);
+  audit('Suppression règlement', 'Facture', iid, i.invoiceNo); commit();
+}
+function commForm(id) {
+  const i = db.invoices.find(x => x.id === id); if (!i || !isMgr()) return;
+  const body = '<form onsubmit="return false"><p class="mb-3">Facture <b>' + esc(i.invoiceNo) + '</b> · commission acquise ' + eur(commAcquired(i)) + ' HT · versée ' + eur(commPaid(i)) + ' · <b>à verser ' + eur(commDue(i)) + '</b></p>' + cols(
+    fld('Date du versement', 'date', today(), { type: 'date', req: true, max: today() }),
+    fld('Montant HT (€)', 'amount', Math.max(commDue(i), 0), { type: 'number', step: '0.01', req: true })) + '</form>';
+  openModal({
+    title: 'Versement de commission', body, buttons: [
+      {
+        label: 'Enregistrer', cls: 'is-primary', onClick: (el, close) => {
+          const f = fdata(el), a = round2(num(f.amount));
+          if (!f.date || f.date > today()) return errBox('Date invalide.');
+          if (!(a > 0)) return errBox('Montant > 0 obligatoire.');
+          if (a > commDue(i) + 0.01) return errBox('Le versement dépasse la commission acquise non versée (' + eur(commDue(i)) + ').');
+          i.commPaid = i.commPaid || []; i.commPaid.push({ id: uid(), date: f.date, amount: a });
+          audit('Commission versée', 'Facture', i.id, i.invoiceNo + ' · ' + eur(a)); close(); commit();
+        }
+      },
+      { label: 'Annuler', onClick: (el, close) => close() }]
+  });
+}
+
+/* ==========================================================================
+   7. FICHE CONTRAT (modale)
+   ========================================================================== */
+function openContract(id) {
+  const h = openModal({ title: '', body: '', wide: true, buttons: [{ label: 'Fermer', onClick: (el, close) => close() }] });
+  CM = { id, el: h.el, render() { renderContractModal(this); } };
+  CM.render();
+}
+function renderContractModal(m) {
+  const c = contractOf(m.id);
+  if (!c) { m.el.remove(); CM = null; return; }
+  const mgr = isMgr(), st = stepsOf(c), p = progressOf(c);
+  const camps = campsOf(c), invs = invsOf(c), bks = bksOf(c);
+  $('.modal-card-title', m.el).textContent = 'Contrat ' + c.odp + ' — ' + c.client;
+  const ic = { done: '✅', todo: '⬜', partial: '🟠', na: '➖' };
+  const stepHtml = st.map(s => '<div class="step"><span class="muted">' + s.k + '</span><span class="ic">' + ic[s.status] + '</span><span>' + esc(s.label) + (s.detail ? ' <small>· ' + esc(s.detail) + '</small>' : '') + '</span>' +
+    (s.k === 1 && mgr ? '<label class="checkbox"><input type="checkbox" ' + (c.filed ? 'checked' : '') + ' onchange="toggleFiled(\'' + c.id + '\',this.checked)"> rangé</label>' : '<span></span>') + '</div>').join('');
+  const campSum = round2(sum(camps, x => x.amountHT)), campDiff = round2(campSum - c.amountHT);
+  const invSum = round2(sum(invs, x => x.amountHT));
+  const campRows = camps.map(x => '<tr><td>' + esc(x.label) + '</td><td>' + fdate(x.start) + ' → ' + fdate(x.end) + '</td><td class="num">' + eur(x.amountHT) + '</td><td class="' + ANT_CLS[x.antenne] + '">' + (ANTENNE.find(a => a.v === x.antenne).l) + '</td>' +
+    '<td class="num">' + (mgr ? '<button class="button is-small is-light-orange" onclick="campForm(\'' + c.id + '\',\'' + x.id + '\')">Modifier</button> <button class="button is-small" onclick="delCampaign(\'' + x.id + '\')">✕</button>' : '') + '</td></tr>').join('');
+  const bkRows = bks.map(x => '<tr><td>' + esc(x.emission) + '</td><td>' + esc(x.slot) + '</td><td>' + fdate(x.start) + ' → ' + fdate(x.end) + '</td><td>' + (x.status === 'confirme' ? '<span class="tag ok">Confirmée</span>' : '<span class="tag o25">Réservée</span>') + '</td>' +
+    '<td class="num">' + (mgr ? '<button class="button is-small is-light-orange" onclick="bookForm(\'' + c.id + '\',\'' + x.id + '\')">Modifier</button> <button class="button is-small" onclick="delBooking(\'' + x.id + '\')">✕</button>' : '') + '</td></tr>').join('');
+  const invRows = invs.map(i => { const s = invStatus(i); return '<tr><td>' + (i.invoiceNo ? esc(i.invoiceNo) : '<span class="muted">planifiée</span>') + '</td><td>' + fdate(i.invoiceDate) + '</td><td class="num">' + eur(i.amountHT) + '</td><td class="num">' + eur(invTTC(i)) + '</td><td class="num">' + eur(invPaid(i)) + '</td><td class="num">' + eur(invReste(i)) + '</td><td><span class="tag ' + s.cls + '">' + s.l + '</span></td>' +
+    '<td class="num">' + (mgr ? '<button class="button is-small is-light-orange" onclick="payForm(\'' + i.id + '\')">Règlement</button> <button class="button is-small" onclick="invForm(\'' + c.id + '\',\'' + i.id + '\')">Modifier</button>' : '') + '</td></tr>'; }).join('');
+  const logs = db.log.filter(l => l.ref === c.id || (l.detail || '').includes(c.odp)).slice(0, 8).map(l => '<tr><td>' + new Date(l.ts).toLocaleString('fr-FR') + '</td><td>' + esc(l.user) + '</td><td>' + esc(l.action) + ' · ' + esc(l.entity) + '</td><td class="muted">' + esc(l.detail) + '</td></tr>').join('');
+  $('.modal-card-body', m.el).innerHTML =
+    '<div class="box"><div class="box-h"><h2>Informations</h2><div>' + (mgr ? '<button class="button is-small is-light-orange" onclick="contractForm(\'' + c.id + '\')">Modifier</button> ' : '') + (isAdmin() ? '<button class="button is-small is-danger is-light" onclick="delContract(\'' + c.id + '\')">Supprimer</button>' : '') + '</div></div>' +
+    '<div class="columns is-multiline"><div class="column is-4"><span class="muted">Client</span><br><b>' + esc(c.client) + '</b></div><div class="column is-4"><span class="muted">Commercial</span><br><b>' + esc(sellerName(c.sellerId)) + '</b></div><div class="column is-4"><span class="muted">Type</span><br><b>' + (c.type === 'sponsoring' ? 'Sponsoring' : 'Publicité') + '</b></div>' +
+    '<div class="column is-4"><span class="muted">Signé le</span><br><b>' + fdate(c.signedDate) + '</b></div><div class="column is-4"><span class="muted">Montant HT</span><br><b>' + eur(c.amountHT) + '</b></div><div class="column is-4"><span class="muted">Libellé</span><br><b>' + esc(c.label) + '</b></div>' +
+    '<div class="column is-12"><span class="muted">Drive</span> ' + (c.driveUrl ? '<a href="' + esc(c.driveUrl) + '" target="_blank" rel="noopener">Ouvrir le contrat</a>' : '<span class="muted">aucun lien</span>') + (c.notes ? ' &nbsp;·&nbsp; <span class="muted">Notes :</span> ' + esc(c.notes) : '') + '</div></div></div>' +
+    '<div class="box"><div class="box-h"><h2>Suivi des 8 étapes</h2><span class="sub">' + p.done + ' / ' + p.total + ' étapes</span></div>' + stepHtml + '</div>' +
+    '<div class="box"><div class="box-h"><h2>Campagnes</h2><div><span class="sub">Total ' + eur(campSum) + ' / ' + eur(c.amountHT) + (Math.abs(campDiff) > 0.01 ? ' <b style="color:var(--danger)">(écart ' + eur(campDiff) + ')</b>' : '') + '</span> ' + (mgr ? '<button class="button is-small is-primary" onclick="campForm(\'' + c.id + '\')">+ Campagne</button>' : '') + '</div></div>' +
+    (camps.length ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Campagne</th><th>Période</th><th class="num">HT</th><th>Antenne</th><th></th></tr></thead><tbody>' + campRows + '</tbody></table></div>' : '<div class="empty">Aucune campagne enregistrée.</div>') + '</div>' +
+    (c.type === 'sponsoring' ? '<div class="box"><div class="box-h"><h2>Réservation des émissions sponsorisées</h2>' + (mgr ? '<button class="button is-small is-primary" onclick="bookForm(\'' + c.id + '\')">+ Réservation</button>' : '') + '</div>' +
+      (bks.length ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Émission</th><th>Créneau</th><th>Période</th><th>Statut</th><th></th></tr></thead><tbody>' + bkRows + '</tbody></table></div>' : '<div class="empty">Aucune émission réservée.</div>') + '</div>' : '') +
+    '<div class="box"><div class="box-h"><h2>Facturation &amp; encaissements</h2><div><span class="sub">Facturé HT ' + eur(invSum) + ' / ' + eur(c.amountHT) + '</span> ' + (mgr ? '<button class="button is-small is-primary" onclick="invForm(\'' + c.id + '\')">+ Encaissement</button>' : '') + '</div></div>' +
+    (invs.length ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Facture</th><th>Date</th><th class="num">HT</th><th class="num">TTC</th><th class="num">Réglé</th><th class="num">Reste</th><th>Statut</th><th></th></tr></thead><tbody>' + invRows + '</tbody></table></div>' : '<div class="empty">Aucun encaissement enregistré.</div>') + '</div>' +
+    (logs ? '<div class="box"><div class="box-h"><h2>Historique</h2></div><div class="tw"><table class="table is-fullwidth is-narrow"><tbody>' + logs + '</tbody></table></div></div>' : '');
+}
+
+/* ==========================================================================
+   8. VUES
+   ========================================================================== */
+const kpi = (l, v, s, cls) => '<div class="kpi ' + (cls || '') + '"><div class="kpi-l">' + l + '</div><div class="kpi-v">' + v + '</div><div class="kpi-s">' + (s || '&nbsp;') + '</div></div>';
+const alertHtml = a => '<div class="al ' + a.lvl + '"' + (a.cid ? ' onclick="openContract(\'' + a.cid + '\')"' : '') + '><span>' + (a.lvl === 'danger' ? '🔴' : a.lvl === 'warning' ? '🟠' : 'ℹ️') + '</span><span>' + esc(a.txt) + '</span></div>';
+const yearsOf = () => { const s = new Set([today().slice(0, 4)]); db.contracts.forEach(c => s.add(c.signedDate.slice(0, 4))); db.invoices.forEach(i => s.add(i.invoiceDate.slice(0, 4))); return [...s].sort().reverse(); };
+
+/* ---------- Accueil ---------- */
+function vHome() {
+  const t = today(), ym = t.slice(0, 7), y = t.slice(0, 4), mgr = isMgr();
+  const vis = visContracts(), ids = visIds(), inv = db.invoices.filter(i => ids.has(i.contractId));
+  const sm = sum(vis.filter(c => ymOf(c.signedDate) === ym), c => c.amountHT), sy = sum(vis.filter(c => c.signedDate.startsWith(y)), c => c.amountHT);
+  const reste = sum(inv.filter(i => i.invoiceNo), i => invReste(i)), late = inv.filter(invOverdue);
+  const comm = sum(inv, commDue), al = computeAlerts();
+  let k = kpi('CA signé · ' + MONTHS[+ym.slice(5) - 1], eur(sm), vis.filter(c => ymOf(c.signedDate) === ym).length + ' contrat(s)') + kpi('CA signé · ' + y, eur(sy), vis.filter(c => c.signedDate.startsWith(y)).length + ' contrat(s)');
+  if (mgr) k += kpi('CA diffusé · ' + MONTHS[+ym.slice(5) - 1], eur(caDiffuseMonth(ym)), 'facturé + à rajouter') + kpi('CA diffusé · ' + y, eur(caDiffuseYear(+y).reduce((s, r) => s + r.total, 0)), 'cumul de l\'année');
+  k += kpi('Reste à encaisser (TTC)', eur(reste), late.length + ' facture(s) en retard', late.length ? 'danger' : '') + kpi(mgr ? 'Commissions à verser' : 'Mes commissions à recevoir', eur(comm), 'HT, acquises non versées');
+  const recent = [...vis].sort((a, b) => b.signedDate.localeCompare(a.signedDate) || b.odp.localeCompare(a.odp)).slice(0, 6);
+  const todo = vis.filter(c => progressOf(c).pct < 100).length;
+  return '<div class="box-h"><h2 style="font-family:\'Barlow Condensed\';font-size:30px;font-weight:800;text-transform:uppercase">Tableau de bord</h2><button class="button is-primary" onclick="contractForm()">+ Nouveau contrat</button></div>' +
+    '<div class="kpis">' + k + '</div>' +
+    (!db.contracts.length ? '<div class="box"><div class="empty">Aucun contrat pour l\'instant.<br><br><button class="button is-primary" onclick="contractForm()">Saisir le premier contrat</button> ' + (isAdmin() ? '<button class="button is-light-orange" onclick="loadDemo()">Charger des données de démonstration</button>' : '') + '</div></div>' :
+      '<div class="grid2"><div class="box"><div class="box-h"><h2>À traiter</h2><a onclick="go(\'alertes\')">Tout voir (' + al.length + ')</a></div>' + (al.length ? al.slice(0, 7).map(alertHtml).join('') : '<div class="empty">Rien à signaler ✅</div>') + '</div>' +
+      '<div class="box"><div class="box-h"><h2>Derniers contrats</h2><span class="sub">' + todo + ' contrat(s) à compléter</span></div><div class="tw"><table class="table is-fullwidth is-hoverable"><tbody>' +
+      recent.map(c => { const p = progressOf(c); return '<tr class="clickable" onclick="openContract(\'' + c.id + '\')"><td><b>' + esc(c.odp) + '</b></td><td>' + esc(c.client) + '</td><td class="num">' + eur(c.amountHT) + '</td><td><span class="prog ' + (p.pct === 100 ? 'full' : '') + '"><i style="width:' + p.pct + '%"></i></span> <small>' + p.done + '/' + p.total + '</small></td></tr>'; }).join('') + '</tbody></table></div></div></div>');
+}
+
+/* ---------- Contrats ---------- */
+function vContracts() {
+  const f = ST.cf, q = f.q.trim().toLowerCase();
+  let list = visContracts().filter(c => (!q || (c.client + ' ' + c.odp + ' ' + c.label).toLowerCase().includes(q)) && (!f.year || c.signedDate.startsWith(f.year)) && (!f.seller || c.sellerId === f.seller) && (!f.type || c.type === f.type) &&
+    (!f.status || (f.status === 'complete') === (progressOf(c).pct === 100)));
+  list = list.sort((a, b) => b.signedDate.localeCompare(a.signedDate) || b.odp.localeCompare(a.odp));
+  const rows = list.map(c => { const p = progressOf(c); return '<tr class="clickable" onclick="openContract(\'' + c.id + '\')"><td><b>' + esc(c.odp) + '</b></td><td>' + fdate(c.signedDate) + '</td><td>' + esc(c.client) + '</td><td>' + esc(sellerName(c.sellerId)) + '</td><td>' + (c.type === 'sponsoring' ? '<span class="tag o25">Sponsoring</span>' : '<span class="tag grey">Publicité</span>') + '</td><td>' + esc(c.label) + '</td><td class="num">' + eur(c.amountHT) + '</td><td><span class="prog ' + (p.pct === 100 ? 'full' : '') + '"><i style="width:' + p.pct + '%"></i></span> <small>' + p.done + '/' + p.total + '</small></td></tr>'; }).join('');
+  const sel = (id, val, arr, all) => '<div class="select"><select id="' + id + '" onchange="setF(\'cf\',\'' + id.slice(2) + '\',this.value)">' + opts([{ v: '', l: all }].concat(arr), val) + '</select></div>';
+  return '<div class="box"><div class="box-h"><h2>Contrats</h2><button class="button is-primary" onclick="contractForm()">+ Nouveau contrat</button></div>' +
+    '<div class="bar"><input class="input" style="max-width:260px" id="cfq" placeholder="Rechercher client, ODP, libellé…" value="' + esc(f.q) + '" oninput="ST.cf.q=this.value;renderAll()">' +
+    sel('cfyear', f.year, yearsOf().map(y => ({ v: y, l: y })), 'Toutes les années') + (me().role === 'commercial' ? '' : sel('cfseller', f.seller, db.sellers.map(s => ({ v: s.id, l: s.name })), 'Tous les commerciaux')) +
+    sel('cftype', f.type, [{ v: 'publicite', l: 'Publicité' }, { v: 'sponsoring', l: 'Sponsoring' }], 'Tous les types') + sel('cfstatus', f.status, [{ v: 'complete', l: 'Complets' }, { v: 'progress', l: 'À compléter' }], 'Tous les statuts') +
+    '<span class="sub muted">' + list.length + ' contrat(s) · ' + eur(sum(list, c => c.amountHT)) + ' HT</span></div>' +
+    (list.length ? '<div class="tw"><table class="table is-fullwidth is-hoverable"><thead><tr><th>ODP</th><th>Signé le</th><th>Client</th><th>Commercial</th><th>Type</th><th>Libellé</th><th class="num">Montant HT</th><th>Avancement</th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<div class="empty">Aucun contrat ne correspond.</div>') + '</div>';
+}
+
+/* ---------- Campagnes (suivi mensuel + Aquira) ---------- */
+function vCampaigns() {
+  const ym = ST.cm, ids = visIds(), mgr = isMgr();
+  const first = ym + '-01', last = ym + '-31';
+  const list = db.campaigns.filter(x => ids.has(x.contractId) && x.start <= last && x.end >= first).sort((a, b) => a.start.localeCompare(b.start));
+  const rows = list.map(x => {
+    const c = contractOf(x.contractId), part = allocByMonth(x)[ym] || 0;
+    const sel = mgr ? '<div class="select is-small"><select class="' + ANT_CLS[x.antenne] + '" onchange="setAntenne(\'' + x.id + '\',this.value)">' + opts(ANTENNE, x.antenne) + '</select></div>' : '<span class="' + ANT_CLS[x.antenne] + '">' + ANTENNE.find(a => a.v === x.antenne).l + '</span>';
+    return '<tr><td><a onclick="openContract(\'' + c.id + '\')"><b>' + esc(c.odp) + '</b></a></td><td>' + esc(c.client) + '</td><td>' + esc(x.label) + (c.type === 'sponsoring' ? ' <span class="tag o25">Sponsoring</span>' : '') + '</td><td>' + fdate(x.start) + ' → ' + fdate(x.end) + '</td><td class="num">' + eur(x.amountHT) + '</td><td class="num">' + eur(part) + '</td><td>' + sel + '</td><td class="muted">' + (x.confirmedDate ? 'conf. ' + fdate(x.confirmedDate) : x.sentDate ? 'env. ' + fdate(x.sentDate) : '') + '</td></tr>';
+  }).join('');
+  const bks = db.bookings.filter(b => ids.has(b.contractId) && b.start <= last && b.end >= first).sort((a, b) => a.emission.localeCompare(b.emission));
+  const bkRows = bks.map(b => { const c = contractOf(b.contractId); return '<tr><td><b>' + esc(b.emission) + '</b></td><td>' + esc(b.slot) + '</td><td>' + esc(c.client) + '</td><td>' + fdate(b.start) + ' → ' + fdate(b.end) + '</td><td>' + (b.status === 'confirme' ? '<span class="tag ok">Confirmée</span>' : '<span class="tag o25">Réservée</span>') + '</td></tr>'; }).join('');
+  return '<div class="box"><div class="box-h"><div class="mnav"><button class="button" onclick="ST.cm=addMonths(ST.cm,-1);renderAll()">◀</button><div class="ml">' + ymLabel(ym) + '</div><button class="button" onclick="ST.cm=addMonths(ST.cm,1);renderAll()">▶</button><button class="button is-light-orange" onclick="ST.cm=today().slice(0,7);renderAll()">Aujourd\'hui</button></div>' +
+    '<span class="sub">Légende antenne : <span class="aq-none">non placée</span> · <span class="aq-sent">envoyée (rouge)</span> · <span class="aq-conf">confirmée (rouge gras)</span></span></div>' +
+    (list.length ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>ODP</th><th>Client</th><th>Campagne</th><th>Période</th><th class="num">HT total</th><th class="num">HT du mois</th><th>Statut antenne</th><th></th></tr></thead><tbody>' + rows + '</tbody>' +
+      '<tfoot><tr><td colspan="5">Diffusé sur le mois (prorata jours)</td><td class="num">' + eur(sum(list, x => allocByMonth(x)[ym] || 0)) + '</td><td colspan="2"></td></tr></tfoot></table></div>' : '<div class="empty">Aucune campagne diffusée en ' + ymLabel(ym) + '.</div>') + '</div>' +
+    '<div class="box"><div class="box-h"><h2>Émissions sponsorisées · ' + ymLabel(ym) + '</h2></div>' +
+    (bks.length ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Émission</th><th>Créneau</th><th>Client</th><th>Période</th><th>Statut</th></tr></thead><tbody>' + bkRows + '</tbody></table></div>' : '<div class="empty">Aucune réservation ce mois-ci.</div>') + '</div>';
+}
+
+/* ---------- Encaissements ---------- */
+function vPay() {
+  const f = ST.ef, q = f.q.trim().toLowerCase(), ids = visIds(), mgr = isMgr();
+  const list = db.invoices.filter(i => ids.has(i.contractId)).filter(i => {
+    const c = contractOf(i.contractId), s = invStatus(i);
+    return (!q || (c.client + ' ' + (i.invoiceNo || '') + ' ' + c.odp).toLowerCase().includes(q)) && (!f.year || i.invoiceDate.startsWith(f.year)) && (!f.seller || c.sellerId === f.seller) && (!f.status || s.k === f.status);
+  }).sort((a, b) => b.invoiceDate.localeCompare(a.invoiceDate));
+  const rows = list.map(i => {
+    const c = contractOf(i.contractId), s = invStatus(i), cp = db.campaigns.find(x => x.id === i.campaignId);
+    return '<tr><td><a onclick="openContract(\'' + c.id + '\')">' + esc(c.client) + '</a></td><td>' + esc(cp ? cp.label : c.label) + '</td><td>' + (i.invoiceNo ? esc(i.invoiceNo) : '<span class="muted">—</span>') + '</td><td>' + fdate(i.invoiceDate) + '</td><td class="num">' + eur(invTTC(i)) + '</td>' +
+      MODES.map(m => '<td class="num">' + (invByMode(i, m.v) ? eur(invByMode(i, m.v)) : '') + '</td>').join('') + '<td class="num"><b>' + eur(invReste(i)) + '</b></td><td><span class="tag ' + s.cls + '">' + s.l + '</span></td>' +
+      '<td class="num">' + eur(commAcquired(i)) + '</td><td class="num">' + eur(commPaid(i)) + '</td>' +
+      '<td class="num">' + (mgr ? '<button class="button is-small is-light-orange" onclick="payForm(\'' + i.id + '\')" title="Enregistrer un règlement">Règl.</button> <button class="button is-small" onclick="commForm(\'' + i.id + '\')" title="Verser la commission">Comm.</button> <button class="button is-small" onclick="invForm(\'\',\'' + i.id + '\')">✎</button> <button class="button is-small" onclick="delInvoice(\'' + i.id + '\')">✕</button>' : '') + '</td></tr>';
+  }).join('');
+  const issued = list.filter(i => i.invoiceNo);
+  const sel = (id, val, arr, all) => '<div class="select"><select id="' + id + '" onchange="setF(\'ef\',\'' + id.slice(2) + '\',this.value)">' + opts([{ v: '', l: all }].concat(arr), val) + '</select></div>';
+  const kp = '<div class="kpis">' + kpi('Facturé HT', eur(sum(issued, i => i.amountHT)), issued.length + ' facture(s) émise(s)') + kpi('Encaissé TTC', eur(sum(list, invPaid)), '') + kpi('Reste à encaisser', eur(sum(issued, invReste)), list.filter(invOverdue).length + ' en retard', list.some(invOverdue) ? 'danger' : '') + kpi('Commission acquise', eur(sum(list, commAcquired)), 'HT · versée ' + eur(sum(list, commPaid))) + '</div>';
+  const bySeller = db.sellers.filter(s => list.some(i => contractOf(i.contractId).sellerId === s.id)).map(s => {
+    const l = list.filter(i => contractOf(i.contractId).sellerId === s.id);
+    return '<tr><td><b>' + esc(s.name) + '</b></td><td class="num">' + eur(sum(l.filter(i => i.invoiceNo), i => i.amountHT)) + '</td><td class="num">' + eur(sum(l, commAcquired)) + '</td><td class="num">' + eur(sum(l, commPaid)) + '</td><td class="num"><b>' + eur(sum(l, commDue)) + '</b></td></tr>';
+  }).join('');
+  return kp + '<div class="box"><div class="box-h"><h2>Encaissements</h2><div>' + (mgr ? '<button class="button is-primary" onclick="invForm()">+ Nouvel encaissement</button> ' : '') + '<button class="button is-light-orange" onclick="exportPay()">Export CSV</button></div></div>' +
+    '<div class="bar"><input class="input" style="max-width:240px" id="efq" placeholder="Client, ODP, n° facture…" value="' + esc(f.q) + '" oninput="ST.ef.q=this.value;renderAll()">' + sel('efyear', f.year, yearsOf().map(y => ({ v: y, l: y })), 'Toutes les années') +
+    (me().role === 'commercial' ? '' : sel('efseller', f.seller, db.sellers.map(s => ({ v: s.id, l: s.name })), 'Tous les commerciaux')) + sel('efstatus', f.status, [{ v: 'planned', l: 'Planifiées' }, { v: 'due', l: 'À encaisser' }, { v: 'partial', l: 'Partielles' }, { v: 'late', l: 'En retard' }, { v: 'paid', l: 'Soldées' }], 'Tous les statuts') + '</div>' +
+    (list.length ? '<div class="tw"><table class="table is-fullwidth is-hoverable"><thead><tr><th>Client</th><th>Campagne</th><th>Facture N°</th><th>Date</th><th class="num">TTC</th><th class="num">Espèces</th><th class="num">Chq</th><th class="num">Virmt</th><th class="num">Prélvt</th><th class="num">Reste à encaisser</th><th>Statut</th><th class="num">Comm. acquise</th><th class="num">Comm. versée</th><th></th></tr></thead><tbody>' + rows + '</tbody>' +
+      '<tfoot><tr><td colspan="4">Total</td><td class="num">' + eur(sum(list, invTTC)) + '</td>' + MODES.map(m => '<td class="num">' + eur(sum(list, i => invByMode(i, m.v))) + '</td>').join('') + '<td class="num">' + eur(sum(issued, invReste)) + '</td><td></td><td class="num">' + eur(sum(list, commAcquired)) + '</td><td class="num">' + eur(sum(list, commPaid)) + '</td><td></td></tr></tfoot></table></div>' : '<div class="empty">Aucun encaissement ne correspond.</div>') + '</div>' +
+    '<div class="box"><div class="box-h"><h2>Suivi des commissions</h2><span class="sub">Commission acquise = taux × HT encaissé (au prorata des règlements reçus)</span></div>' +
+    (bySeller ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Commercial / agence</th><th class="num">Facturé HT</th><th class="num">Acquise HT</th><th class="num">Versée HT</th><th class="num">À verser HT</th></tr></thead><tbody>' + bySeller + '</tbody></table></div>' : '<div class="empty">Aucune donnée.</div>') + '</div>';
+}
+function exportPay() {
+  const ids = visIds(), rows = [['Client', 'ODP', 'Campagne', 'Facture', 'Date', 'HT', 'TTC', 'Espèces', 'Chq', 'Virmt', 'Prélvt', 'Reste', 'Comm. acquise', 'Comm. versée']];
+  db.invoices.filter(i => ids.has(i.contractId)).forEach(i => { const c = contractOf(i.contractId), cp = db.campaigns.find(x => x.id === i.campaignId); rows.push([c.client, c.odp, cp ? cp.label : c.label, i.invoiceNo, i.invoiceDate, i.amountHT, invTTC(i), ...MODES.map(m => invByMode(i, m.v)), invReste(i), commAcquired(i), commPaid(i)]); });
+  csv('encaissements.csv', rows);
+}
+
+/* ---------- CA & clôture ---------- */
+function vCA() {
+  const y = ST.cay, sg = caSigneYear(y), df = caDiffuseYear(y), cur = today().slice(0, 7);
+  const sellers = db.sellers.filter(s => sg.some(r => r.by[s.id]));
+  const yearSel = '<div class="select"><select id="cay" onchange="ST.cay=+this.value;renderAll()">' + opts(yearsOf().map(x => ({ v: x, l: x })), String(y)) + '</select></div>';
+  const suivi = sg.map((r, i) => {
+    const cl = db.closures[r.ym], d = df[i], drift = closureDrift(r.ym), can = r.ym < cur;
+    return '<tr><td><b>' + MONTHS[i] + '</b></td><td class="num">' + eur(r.total) + '</td><td class="num">' + eur(d.total) + '</td><td class="num">' + (cl ? eur(cl.caSigne) : '<span class="muted">—</span>') + '</td><td class="num">' + (cl ? eur(cl.caDiffuse) : '<span class="muted">—</span>') + '</td><td>' +
+      (cl ? (drift ? '<span class="tag ko">Modifié depuis la clôture</span>' : '<span class="tag ok">Clôturé le ' + fdate(cl.closedAt.slice(0, 10)) + '</span>') + ' <small class="muted">' + esc(cl.by) + '</small>' : can ? '<span class="tag o25">À clôturer</span>' : '<span class="tag grey">En cours / à venir</span>') + '</td><td class="num">' +
+      (cl ? (isAdmin() ? '<button class="button is-small" onclick="reopenMonth(\'' + r.ym + '\')">Rouvrir</button> ' : '') + (drift ? '<button class="button is-small is-primary" onclick="closeMonth(\'' + r.ym + '\')">Re-clôturer</button>' : '') : can ? '<button class="button is-small is-primary" onclick="closeMonth(\'' + r.ym + '\')">Clôturer</button>' : '') + '</td></tr>';
+  }).join('');
+  const signRows = sg.map((r, i) => '<tr class="clickable" onclick="caSigneDetail(\'' + r.ym + '\')"><td><b>' + MONTHS[i] + '</b></td>' + sellers.map(s => '<td class="num">' + (r.by[s.id] ? eur(r.by[s.id]) : '') + '</td>').join('') + '<td class="num"><b>' + eur(r.total) + '</b></td><td class="num">' + eur(r.cum) + '</td></tr>').join('');
+  const difRows = df.map((r, i) => '<tr class="clickable" onclick="caDiffuseDetail(\'' + r.ym + '\')"><td><b>' + MONTHS[i] + '</b></td><td class="num">' + eur(r.billed) + '</td><td class="num">' + eur(r.adj) + '</td><td class="num"><b>' + eur(r.total) + '</b></td><td class="num">' + eur(r.cum) + '</td></tr>').join('');
+  return '<div class="box"><div class="box-h"><h2>Suivi mensuel · ' + y + '</h2><div>' + yearSel + ' <button class="button is-light-orange" onclick="exportCA()">Export CSV</button></div></div>' +
+    '<p class="help mb-3">Début de mois : clôturez le mois précédent pour figer le CA signé et le CA diffusé. Si une donnée est modifiée après clôture, le mois est signalé.</p>' +
+    '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Mois</th><th class="num">CA signé (calcul)</th><th class="num">CA diffusé (calcul)</th><th class="num">CA signé figé</th><th class="num">CA diffusé figé</th><th>Statut</th><th></th></tr></thead><tbody>' + suivi + '</tbody>' +
+    '<tfoot><tr><td>Total</td><td class="num">' + eur(sg[11].cum) + '</td><td class="num">' + eur(df[11].cum) + '</td><td colspan="4"></td></tr></tfoot></table></div></div>' +
+    '<div class="grid2"><div class="box"><div class="box-h"><h2>CA signé</h2><span class="sub">Par mois de signature — clic pour le détail</span></div><div class="tw"><table class="table is-fullwidth is-hoverable"><thead><tr><th>Mois</th>' + sellers.map(s => '<th class="num">' + esc(s.name) + '</th>').join('') + '<th class="num">Total</th><th class="num">Cumul</th></tr></thead><tbody>' + signRows + '</tbody></table></div></div>' +
+    '<div class="box"><div class="box-h"><h2>CA diffusé</h2><span class="sub">Facturé + « à rajouter » — clic pour le détail</span></div><div class="tw"><table class="table is-fullwidth is-hoverable"><thead><tr><th>Mois</th><th class="num">Facturé HT</th><th class="num">À rajouter</th><th class="num">CA diffusé</th><th class="num">Cumul</th></tr></thead><tbody>' + difRows + '</tbody></table></div></div></div>';
+}
+function caSigneDetail(ym) {
+  const l = db.contracts.filter(c => ymOf(c.signedDate) === ym).sort((a, b) => a.signedDate.localeCompare(b.signedDate));
+  openModal({ title: 'CA signé · ' + ymLabel(ym), wide: true, buttons: [{ label: 'Fermer', onClick: (e, c) => c() }], body: l.length ? '<table class="table is-fullwidth"><thead><tr><th>Date</th><th>ODP</th><th>Client</th><th>Commercial</th><th class="num">HT</th></tr></thead><tbody>' + l.map(c => '<tr><td>' + fdate(c.signedDate) + '</td><td>' + esc(c.odp) + '</td><td>' + esc(c.client) + '</td><td>' + esc(sellerName(c.sellerId)) + '</td><td class="num">' + eur(c.amountHT) + '</td></tr>').join('') + '</tbody><tfoot><tr><td colspan="4">Total</td><td class="num">' + eur(sum(l, c => c.amountHT)) + '</td></tr></tfoot></table>' : '<div class="empty">Aucun contrat signé ce mois-ci.</div>' });
+}
+function caDiffuseDetail(ym) {
+  const r = caDiffuseYear(+ym.slice(0, 4))[+ym.slice(5, 7) - 1];
+  openModal({
+    title: 'CA diffusé · ' + ymLabel(ym), wide: true, buttons: [{ label: 'Fermer', onClick: (e, c) => c() }],
+    body: r.detail.length ? '<p class="help mb-3">« À rajouter » = ce qui a réellement été diffusé ce mois-ci (prorata des jours de campagne) moins ce qui a été facturé ce mois-ci. Il peut être négatif (facturé en avance pour une diffusion sur d\'autres mois).</p><table class="table is-fullwidth"><thead><tr><th>ODP</th><th>Client</th><th class="num">Facturé HT</th><th class="num">Diffusé réel</th><th class="num">À rajouter</th></tr></thead><tbody>' +
+      r.detail.map(x => '<tr><td>' + esc(x.c.odp) + '</td><td>' + esc(x.c.client) + '</td><td class="num">' + eur(x.b) + '</td><td class="num">' + eur(x.d) + '</td><td class="num">' + eur(x.adj) + '</td></tr>').join('') + '</tbody><tfoot><tr><td colspan="2">Total</td><td class="num">' + eur(r.billed) + '</td><td class="num">' + eur(r.total) + '</td><td class="num">' + eur(r.adj) + '</td></tr></tfoot></table>' : '<div class="empty">Aucune diffusion ni facturation ce mois-ci.</div>'
+  });
+}
+function exportCA() {
+  const y = ST.cay, sg = caSigneYear(y), df = caDiffuseYear(y), rows = [['Mois', 'CA signé', 'Facturé HT', 'À rajouter', 'CA diffusé', 'CA signé figé', 'CA diffusé figé']];
+  sg.forEach((r, i) => { const cl = db.closures[r.ym]; rows.push([MONTHS[i] + ' ' + y, r.total, df[i].billed, df[i].adj, df[i].total, cl ? cl.caSigne : '', cl ? cl.caDiffuse : '']); });
+  csv('ca_' + y + '.csv', rows);
+}
+
+/* ---------- Alertes ---------- */
+function vAlerts() {
+  const al = computeAlerts();
+  return '<div class="box"><div class="box-h"><h2>Alertes &amp; points à traiter</h2><span class="sub">' + al.length + ' point(s)</span></div>' + (al.length ? al.map(alertHtml).join('') : '<div class="empty">Tout est à jour ✅</div>') + '</div>';
+}
+
+/* ==========================================================================
+   9. PARAMÈTRES, SAUVEGARDE, DÉMO
+   ========================================================================== */
+function csv(name, rows) {
+  const s = rows.map(r => r.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(';')).join('\n');
+  dl(name, '﻿' + s, 'text/csv');
+}
+function dl(name, content, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([content], { type })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
+function openSettings() {
+  if (!isAdmin()) return;
+  const h = openModal({ title: 'Paramètres', body: '', wide: true, buttons: [{ label: 'Fermer', onClick: (e, c) => c() }] });
+  const draw = () => {
+    const yrs = [...new Set([...Object.keys(db.odp), today().slice(0, 4)])].sort();
+    $('.modal-card-body', h.el).innerHTML =
+      '<div class="box"><div class="box-h"><h2>Général</h2></div><div class="columns"><div class="column">' +
+      '<label class="label is-small">TVA par défaut (%)</label><input class="input" type="number" step="0.1" value="' + db.settings.tva + '" onchange="db.settings.tva=+this.value;commit()"></div><div class="column">' +
+      '<label class="label is-small">Délai de paiement (jours)</label><input class="input" type="number" value="' + db.settings.payDelay + '" onchange="db.settings.payDelay=+this.value;commit()"></div></div>' +
+      '<label class="label is-small">Dernier n° d\'ODP utilisé (pour reprendre votre numérotation existante)</label><div class="columns is-multiline">' +
+      yrs.map(y => '<div class="column is-3"><div class="field has-addons"><p class="control"><span class="button is-static">' + y + '</span></p><p class="control is-expanded"><input class="input" type="number" min="0" value="' + (db.odp[y] || 0) + '" onchange="setOdpSeq(\'' + y + '\',this.value)"></p></div></div>').join('') + '</div></div>' +
+      '<div class="box"><div class="box-h"><h2>Commerciaux / agences</h2><button class="button is-small is-primary" id="addSeller">+ Ajouter</button></div><table class="table is-fullwidth"><thead><tr><th>Nom</th><th>Commission (%)</th><th></th></tr></thead><tbody>' +
+      db.sellers.map(s => '<tr><td><input class="input is-small" value="' + esc(s.name) + '" onchange="setSeller(\'' + s.id + '\',\'name\',this.value)"></td><td><input class="input is-small" type="number" step="0.1" value="' + s.rate + '" onchange="setSeller(\'' + s.id + '\',\'rate\',this.value)"></td><td class="num"><button class="button is-small" onclick="delSeller(\'' + s.id + '\')">✕</button></td></tr>').join('') + '</tbody></table></div>' +
+      '<div class="box"><div class="box-h"><h2>Utilisateurs</h2><button class="button is-small is-primary" id="addUser">+ Ajouter</button></div><table class="table is-fullwidth"><thead><tr><th>Nom</th><th>Rôle</th><th>Lié au commercial</th><th></th></tr></thead><tbody>' +
+      db.users.map(u => '<tr><td><input class="input is-small" value="' + esc(u.name) + '" onchange="setUser(\'' + u.id + '\',\'name\',this.value)"></td><td><div class="select is-small"><select onchange="setUser(\'' + u.id + '\',\'role\',this.value)">' + opts(Object.keys(ROLES).map(k => ({ v: k, l: ROLES[k] })), u.role) + '</select></div></td><td><div class="select is-small"><select onchange="setUser(\'' + u.id + '\',\'sellerId\',this.value)">' + opts([{ v: '', l: '—' }].concat(db.sellers.map(s => ({ v: s.id, l: s.name }))), u.sellerId) + '</select></div></td><td class="num"><button class="button is-small" onclick="delUser(\'' + u.id + '\')">✕</button></td></tr>').join('') + '</tbody></table>' +
+      '<p class="help">Administrateur : tout. Gestion : tout sauf paramètres et suppressions. Commercial : uniquement ses contrats, campagnes et commissions (lecture).</p></div>' +
+      '<div class="box"><div class="box-h"><h2>Données</h2></div><div class="bar"><button class="button is-light-orange" onclick="exportJSON()">Exporter (JSON)</button><label class="button is-light-orange">Importer<input type="file" accept=".json" hidden onchange="importJSON(this.files[0])"></label><button class="button is-light-orange" onclick="loadDemo()">Charger des données de démo</button><button class="button is-danger is-light" onclick="resetAll()">Tout effacer</button></div>' +
+      '<p class="help">Les données sont enregistrées dans ce navigateur. Faites des exports réguliers en attendant le branchement sur une base partagée.</p></div>' +
+      '<div class="box"><div class="box-h"><h2>Journal d\'audit</h2><span class="sub">50 dernières actions</span></div><div class="tw" style="max-height:260px;overflow:auto"><table class="table is-fullwidth is-narrow"><tbody>' +
+      db.log.slice(0, 50).map(l => '<tr><td>' + new Date(l.ts).toLocaleString('fr-FR') + '</td><td>' + esc(l.user) + '</td><td>' + esc(l.action) + ' · ' + esc(l.entity) + '</td><td class="muted">' + esc(l.detail) + '</td></tr>').join('') + '</tbody></table></div></div>';
+    const a = $('#addSeller', h.el); if (a) a.onclick = () => { db.sellers.push({ id: uid(), name: 'Nouveau', rate: 0 }); Store.save(); draw(); };
+    const b = $('#addUser', h.el); if (b) b.onclick = () => { db.users.push({ id: uid(), name: 'Nouvel utilisateur', role: 'commercial', sellerId: '' }); Store.save(); draw(); };
+  };
+  window.redrawSettings = draw; draw();
+}
+const redraw = () => { Store.save(); renderAll(); if (window.redrawSettings) window.redrawSettings(); };
+function setOdpSeq(y, v) { const n = Math.max(0, parseInt(v, 10) || 0), max = Math.max(0, ...db.contracts.filter(c => c.odp.startsWith(y + '-')).map(c => +c.odp.slice(5))); if (n < max) { toast('Le compteur ne peut pas être inférieur au plus grand ODP existant (' + max + ').', 'danger'); return redraw(); } db.odp[y] = n; audit('Compteur ODP', 'Paramètres', y, String(n)); redraw(); }
+function setSeller(id, k, v) { const s = seller(id); s[k] = k === 'rate' ? num(v) : v.trim() || s.name; audit('Modification', 'Commercial', id, s.name); redraw(); }
+function delSeller(id) { if (db.contracts.some(c => c.sellerId === id)) return errBox('Ce commercial a des contrats : suppression impossible.'); db.sellers = db.sellers.filter(s => s.id !== id); db.users.forEach(u => { if (u.sellerId === id) u.sellerId = ''; }); redraw(); }
+function setUser(id, k, v) {
+  const u = db.users.find(x => x.id === id);
+  if (k === 'role' && u.role === 'admin' && v !== 'admin' && db.users.filter(x => x.role === 'admin').length < 2) { errBox('Il doit rester au moins un administrateur.'); return redraw(); }
+  u[k] = k === 'name' ? (v.trim() || u.name) : v; audit('Modification', 'Utilisateur', id, u.name + ' · ' + u.role); redraw();
+}
+function delUser(id) { const u = db.users.find(x => x.id === id); if (u.role === 'admin' && db.users.filter(x => x.role === 'admin').length < 2) return errBox('Il doit rester au moins un administrateur.'); if (id === meId) return errBox('Vous ne pouvez pas supprimer votre propre profil.'); db.users = db.users.filter(x => x.id !== id); redraw(); }
+function exportJSON() { dl('commercial-tool-' + today() + '.json', JSON.stringify(db, null, 2), 'application/json'); }
+function importJSON(file) {
+  if (!file) return; const r = new FileReader();
+  r.onload = () => { try { const d = JSON.parse(r.result); if (!d.contracts || !d.users) throw 0; if (!confirm('Remplacer toutes les données actuelles par ce fichier ?')) return; db = Object.assign(Store.blank(), d); meId = db.users[0].id; Store.save(); renderAll(); toast('Données importées'); if (window.redrawSettings) window.redrawSettings(); } catch (e) { errBox('Fichier invalide.'); } };
+  r.readAsText(file);
+}
+function resetAll() { if (!confirm('Effacer TOUTES les données ? Pensez à exporter avant.') || !confirm('Confirmer la suppression définitive.')) return; db = Store.blank(); meId = 'u1'; Store.save(); renderAll(); if (window.redrawSettings) window.redrawSettings(); }
+function loadDemo() {
+  if (db.contracts.length && !confirm('Ajouter des données de démonstration aux données existantes ?')) return;
+  const t = today(), y = t.slice(0, 4);
+  const mk = (client, sellerId, ago, type, label, amt, filed) => { const d = addDays(t, -ago), c = { id: uid(), odp: assignOdp(d), client, sellerId, signedDate: d, type, label, amountHT: amt, driveUrl: '', filed: !!filed, notes: '', createdAt: new Date().toISOString(), createdBy: 'Démo' }; db.contracts.push(c); return c; };
+  const cp = (c, s, e, a, ant) => { const x = { id: uid(), contractId: c.id, label: c.label, start: s, end: e, amountHT: a, antenne: ant, sentDate: ant !== 'none' ? addDays(t, -5) : '', confirmedDate: ant === 'confirmed' ? addDays(t, -3) : '' }; db.campaigns.push(x); return x; };
+  const iv = (c, camp, no, ago, ht, rate, pays) => db.invoices.push({ id: uid(), contractId: c.id, campaignId: camp ? camp.id : '', invoiceNo: no, invoiceDate: addDays(t, -ago), amountHT: ht, tva: 20, commRate: rate, payments: (pays || []).map(p => ({ id: uid(), date: addDays(t, -p[0]), mode: p[1], amount: p[2], ref: '' })), commPaid: [], note: '' });
+  const a = mk('[DÉMO] Boulangerie Azur', 's2', 40, 'publicite', 'Campagne spots printemps', 6000, true);
+  const ca = cp(a, addDays(t, -30), addDays(t, 60), 6000, 'confirmed'); iv(a, ca, 'DEMO-001', 30, 6000, 10, [[10, 'VIRMT', 3600]]);
+  const b = mk('[DÉMO] Garage Riviera', 's1', 20, 'sponsoring', 'Sponsoring météo — année', 12000, true);
+  const cb = cp(b, y + '-01-01', y + '-12-31', 12000, 'sent'); iv(b, cb, 'DEMO-002', 15, 12000, 0, [[8, 'CHQ', 14400]]);
+  db.bookings.push({ id: uid(), contractId: b.id, emission: 'Météo du matin', slot: 'Lun–Ven 7h30', start: y + '-01-01', end: y + '-12-31', status: 'reserve' });
+  const c = mk('[DÉMO] Hôtel Beau Rivage', 's2', 5, 'publicite', 'Campagne fin de saison', 3000, false);
+  cp(c, addDays(t, 5), addDays(t, 35), 3000, 'none');
+  const d = mk('[DÉMO] Opticien du Port', 's1', 65, 'publicite', 'Pack 2 mois', 2400, true);
+  const cd = cp(d, addDays(t, -60), addDays(t, -1), 2400, 'confirmed'); iv(d, cd, 'DEMO-003', 55, 2400, 0, [[40, 'PRELVT', 2880]]);
+  audit('Démo', 'Données', '', 'Données de démonstration chargées'); commit(); toast('Données de démonstration chargées');
+  if (window.redrawSettings) window.redrawSettings();
+}
+
+/* ==========================================================================
+   10. INITIALISATION
+   ========================================================================== */
+$$('.nav-btn').forEach(b => b.addEventListener('click', () => go(b.dataset.page)));
+$('#userSel').addEventListener('change', e => { meId = e.target.value; try { localStorage.setItem('commercial_tool_me', meId); } catch (x) { /* ignore */ } renderAll(); });
+$('#gearBtn').addEventListener('click', openSettings);
+function tick() { $('#clk').textContent = new Date().toLocaleTimeString('fr-FR', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
+tick(); setInterval(tick, 1000);
+renderAll();
 </script>
 </body>
 </html>
