@@ -61,6 +61,10 @@ body{color:var(--ink);min-height:100vh;font-family:'Inter',sans-serif;font-size:
 .modal-card-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.04em;font-size:22px;}
 .modal-card-head{border-bottom:3px solid var(--orange);}
 .modal-card-foot{gap:10px;}
+.dropzone{display:flex;align-items:center;justify-content:center;gap:14px;text-align:left;border:2px dashed var(--orange-50);background:var(--orange-25);border-radius:10px;padding:26px 20px;cursor:pointer;color:var(--orange-dark);}
+.dropzone:hover,.dropzone.over{background:var(--orange-50);border-color:var(--orange);}
+.dropzone.has{border-style:solid;background:#fff;color:var(--ink);}
+.dropzone small{color:var(--ink-soft);}
 .modal-card-foot .button{margin:0 !important;}
 .button.is-primary{background:var(--orange);color:#fff;border-color:transparent;font-weight:700;}
 .button.is-primary:hover,.button.is-primary:focus{background:var(--orange-dark);color:#fff;}
@@ -289,7 +293,7 @@ function stepsOf(c) {
   const sent = camps.filter(x => x.antenne !== 'none').length, conf = camps.filter(x => x.antenne === 'confirmed').length;
   const closed = db.closures[ymOf(c.signedDate)];
   return [
-    { k: 1, label: 'Contrat rangé dans le dossier Drive', status: c.filed ? 'done' : 'todo', detail: c.driveUrl ? 'Lien renseigné' : '' },
+    { k: 1, label: 'Contrat rangé dans le dossier (Dropbox / Drive)', status: c.filed ? 'done' : 'todo', detail: (c.files && c.files.length) ? c.files.length + ' fichier(s) importé(s)' : (c.driveUrl ? 'Lien renseigné' : '') },
     { k: 2, label: 'CA signé enregistré à la date de signature', status: 'done', detail: ymLabel(ymOf(c.signedDate)) },
     { k: 3, label: "N° d'ODP attribué pour la facturation", status: c.odp ? 'done' : 'todo', detail: c.odp || '' },
     { k: 4, label: 'Campagnes enregistrées au suivi', status: camps.length ? 'done' : 'todo', detail: camps.length + ' ligne(s)' },
@@ -751,6 +755,103 @@ function renameClient(key) {
 }
 
 /* ==========================================================================
+   3f. DROPBOX : import du contrat signé
+   Envoi direct depuis le navigateur vers l'API Dropbox (files/upload).
+   Le jeton est saisi dans Paramètres, reste dans ce navigateur et n'est
+   jamais inclus dans les exports JSON.
+   ========================================================================== */
+const dbx = () => (db.settings.dropbox = db.settings.dropbox || { token: '', folder: '/Contrats' });
+const dbxReady = () => !!(dbx().token || '').trim();
+const cleanName = s => String(s || '').replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim();
+function dbxFolder() { let f = (dbx().folder || '').trim().replace(/\\/g, '/').replace(/\/+$/, ''); if (f && !f.startsWith('/')) f = '/' + f; return f; }
+const dbxPath = (c, ext) => dbxFolder() + '/' + c.signedDate.slice(0, 4) + '/' + cleanName(c.odp + ' - ' + c.client + ' - ' + c.label).slice(0, 150) + ext;
+/* Dropbox exige que les caractères non ASCII de l'en-tête Dropbox-API-Arg soient échappés en \uXXXX */
+const dbxArg = o => JSON.stringify(o).replace(/[\u007f-￿]/g, ch => '\\u' + ('0000' + ch.charCodeAt(0).toString(16)).slice(-4));
+function dbxErr(status, j) {
+  if (status === 401) return 'Jeton Dropbox refusé ou expiré : renouvelez-le dans Paramètres.';
+  if (status === 403) return 'Droits insuffisants : activez la permission files.content.write sur l\'application Dropbox.';
+  if (status === 429) return 'Dropbox est saturé, réessayez dans un instant.';
+  return (j && j.error_summary) || ('Erreur Dropbox (' + status + ')');
+}
+function dbxUpload(file, path, onProgress) {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('POST', 'https://content.dropboxapi.com/2/files/upload');
+    x.setRequestHeader('Authorization', 'Bearer ' + dbx().token.trim());
+    x.setRequestHeader('Content-Type', 'application/octet-stream');
+    x.setRequestHeader('Dropbox-API-Arg', dbxArg({ path, mode: 'add', autorename: true, mute: false }));
+    x.upload.onprogress = e => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
+    x.onload = () => { let j = {}; try { j = JSON.parse(x.responseText); } catch (e) { /* réponse non JSON */ } x.status >= 200 && x.status < 300 ? resolve(j) : reject(new Error(dbxErr(x.status, j))); };
+    x.onerror = () => reject(new Error('Connexion à Dropbox impossible (réseau ou navigateur).'));
+    x.send(file);
+  });
+}
+async function dbxTest() {
+  if (!dbxReady()) return errBox('Renseignez d\'abord le jeton Dropbox.');
+  try {
+    const r = await fetch('https://api.dropboxapi.com/2/users/get_current_account', { method: 'POST', headers: { Authorization: 'Bearer ' + dbx().token.trim() } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return errBox(dbxErr(r.status, j));
+    toast('Dropbox connecté : ' + ((j.name && j.name.display_name) || 'compte OK'));
+  } catch (e) { errBox('Connexion à Dropbox impossible (réseau ou navigateur).'); }
+}
+const DBX_EXT = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'], DBX_MAX = 150 * 1024 * 1024;
+function dropboxDialog(cid) {
+  const c = contractOf(cid); if (!c) return;
+  const ready = dbxReady();
+  let file = null;
+  const body = '<p class="mb-3">Contrat <b>' + esc(c.odp) + '</b> · ' + esc(c.client) + '</p>' +
+    (ready ? '' : '<div class="notification is-warning is-light">Dropbox n\'est pas encore configuré. ' + (isAdmin() ? '<a id="dz-set">Ouvrir les paramètres</a>' : 'Demandez à un administrateur de renseigner le jeton Dropbox.') + '</div>') +
+    '<div class="dropzone" id="dz"><div style="font-size:30px;line-height:1">📎</div><div id="dz-txt"><b>Glissez le contrat ici</b><br><small>ou cliquez pour choisir un fichier (PDF, Word, image · 150 Mo max)</small></div><input type="file" id="dz-in" hidden accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"></div>' +
+    '<p class="help mt-2">Destination : <code id="dz-path">' + esc(dbxPath(c, '.pdf')) + '</code></p><progress class="progress is-small mt-2" id="dz-pg" value="0" max="100" style="display:none"></progress><p class="help" id="dz-msg"></p>';
+  const h = openModal({
+    title: 'Importer dans Dropbox', body, buttons: [
+      { label: 'Importer', cls: 'is-primary', onClick: () => run() },
+      { label: 'Passer', onClick: (el, close) => close() }]
+  });
+  const el = h.el, btn = $('.modal-card-foot .is-primary', el), dz = $('#dz', el), inp = $('#dz-in', el), msg = $('#dz-msg', el), pg = $('#dz-pg', el);
+  btn.disabled = true;
+  const say = (t, bad) => { msg.textContent = t; msg.style.color = bad ? 'var(--danger)' : ''; };
+  const pick = f => {
+    if (!f) return;
+    const ext = (f.name.match(/\.[A-Za-z0-9]{1,5}$/) || [''])[0].toLowerCase();
+    if (!DBX_EXT.includes(ext)) return say('Format non accepté (PDF, Word ou image).', true);
+    if (f.size > DBX_MAX) return say('Fichier trop volumineux (150 Mo maximum).', true);
+    file = f; say('');
+    dz.classList.add('has'); $('#dz-txt', el).innerHTML = '<b>' + esc(f.name) + '</b><br><small>' + (f.size / 1048576).toFixed(2).replace('.', ',') + ' Mo · cliquez pour changer</small>';
+    $('#dz-path', el).textContent = dbxPath(c, ext);
+    btn.disabled = !ready;
+  };
+  dz.addEventListener('click', () => inp.click());
+  inp.addEventListener('change', () => pick(inp.files[0]));
+  ['dragenter', 'dragover'].forEach(t => dz.addEventListener(t, e => { e.preventDefault(); dz.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(t => dz.addEventListener(t, e => { e.preventDefault(); dz.classList.remove('over'); }));
+  dz.addEventListener('drop', e => pick(e.dataTransfer.files[0]));
+  const st = $('#dz-set', el); if (st) st.onclick = () => { h.close(); openSettings(); };
+  async function run() {
+    if (!file || !ready) return;
+    const ext = (file.name.match(/\.[A-Za-z0-9]{1,5}$/) || ['.pdf'])[0].toLowerCase(), path = dbxPath(c, ext);
+    btn.disabled = true; pg.style.display = 'block'; pg.value = 0; say('Envoi en cours…');
+    try {
+      const r = await dbxUpload(file, path, p => { pg.value = Math.round(p * 100); });
+      (c.files = c.files || []).push({ name: r.name || file.name, path: r.path_display || path, size: file.size, at: new Date().toISOString(), by: me().name });
+      c.filed = true;
+      audit('Import Dropbox', 'Contrat', c.id, c.odp + ' · ' + (r.path_display || path));
+      commit(); toast('Contrat importé dans Dropbox'); h.close();
+    } catch (e) { say(e.message, true); pg.style.display = 'none'; btn.disabled = false; }
+  }
+}
+const filesHtml = c => (c.files || []).map(f => '<a href="https://www.dropbox.com/home' + encodeURI(f.path) + '" target="_blank" rel="noopener">' + esc(f.name) + '</a> <small class="muted">' + fdate((f.at || '').slice(0, 10)) + '</small>').join(' · ') || '<span class="muted">aucun fichier</span>';
+function dbxSettingsBox() {
+  const d = dbx();
+  return '<div class="box"><div class="box-h"><h2>Dropbox</h2><button class="button is-small is-light-orange" onclick="dbxTest()">Tester la connexion</button></div><div class="columns"><div class="column is-7"><label class="label is-small">Jeton d\'accès Dropbox</label>' +
+    '<input class="input" type="password" autocomplete="off" value="' + esc(d.token || '') + '" onchange="dbx().token=this.value.trim();Store.save()"></div><div class="column is-5"><label class="label is-small">Dossier de destination</label>' +
+    '<input class="input" value="' + esc(d.folder || '') + '" onchange="dbx().folder=this.value;Store.save();if(window.redrawSettings)window.redrawSettings()"></div></div>' +
+    '<p class="help">Les contrats sont rangés dans <code>' + esc(dbxFolder() || '/') + '/AAAA/ODP - Client - Libellé</code>. Le jeton reste dans ce navigateur et n\'est jamais inclus dans les exports. ' +
+    'Créez une application sur dropbox.com/developers (permission <b>files.content.write</b>), générez le jeton et collez-le ici. Un jeton généré ainsi expire au bout de quelques heures : pour un usage durable en équipe, il faudra le confier à un petit serveur.</p></div>';
+}
+
+/* ==========================================================================
    5. ÉTAT & ROUTAGE
    ========================================================================== */
 let PAGE = 'accueil';
@@ -800,7 +901,7 @@ function contractForm(id) {
       fld('Type', 'type', c ? c.type : 'publicite', { req: true, options: [{ v: 'publicite', l: 'Publicité / campagne' }, { v: 'sponsoring', l: 'Sponsoring d\'émission' }] }),
       fld('Libellé / type d\'achat', 'label', c ? c.label : '', { req: true, ph: 'ex. Campagne spots été' }),
       fld('Montant HT (€)', 'amountHT', c ? c.amountHT : '', { req: true, type: 'number', step: '0.01' }),
-      fld('Lien Drive du contrat', 'driveUrl', c ? c.driveUrl : '', { type: 'url', ph: 'https://drive.google.com/…' }),
+      fld('Lien du contrat (optionnel)', 'driveUrl', c ? c.driveUrl : '', { type: 'url', ph: 'https://drive.google.com/…' }),
       c && isAdmin() ? fld('N° ODP (modifiable par un administrateur)', 'odp', c.odp) :
         '<div class="field"><label class="label is-small">N° ODP</label><p class="help">' + (c ? esc(c.odp) : 'Attribué automatiquement à l\'enregistrement : prochain n° ' + fmtOdp(y, (db.odp[y] || 0) + 1)) + '</p></div>'
     ) + fld('Notes', 'notes', c ? c.notes : '', { type: 'textarea' }) + '</form>';
@@ -834,7 +935,7 @@ function saveContract(c, f, close) {
   } else {
     const n = { id: uid(), odp: assignOdp(f.signedDate), client, sellerId: f.sellerId, signedDate: f.signedDate, type: f.type, label: f.label.trim(), amountHT: amount, driveUrl: f.driveUrl || '', filed: false, notes: f.notes || '', createdAt: new Date().toISOString(), createdBy: me().name };
     db.contracts.push(n); audit('Création', 'Contrat', n.id, n.odp + ' · ' + client + ' · ' + eur(amount));
-    close(); commit(); toast('Contrat créé : ODP ' + n.odp); openContract(n.id);
+    close(); commit(); toast('Contrat créé : ODP ' + n.odp); openContract(n.id); dropboxDialog(n.id);
   }
 }
 function delContract(id) {
@@ -1058,7 +1159,7 @@ function renderContractModal(m) {
     '<div class="box"><div class="box-h"><h2>Informations</h2><div>' + (mgr ? '<button class="button is-small is-light-orange" onclick="contractForm(\'' + c.id + '\')">Modifier</button> ' : '') + (isAdmin() ? '<button class="button is-small is-danger is-light" onclick="delContract(\'' + c.id + '\')">Supprimer</button>' : '') + '</div></div>' +
     '<div class="columns is-multiline"><div class="column is-4"><span class="muted">Client</span><br><b>' + esc(c.client) + '</b></div><div class="column is-4"><span class="muted">Commercial</span><br><b>' + esc(sellerName(c.sellerId)) + '</b></div><div class="column is-4"><span class="muted">Type</span><br><b>' + (c.type === 'sponsoring' ? 'Sponsoring' : 'Publicité') + '</b></div>' +
     '<div class="column is-4"><span class="muted">Signé le</span><br><b>' + fdate(c.signedDate) + '</b></div><div class="column is-4"><span class="muted">Montant HT</span><br><b>' + eur(c.amountHT) + '</b></div><div class="column is-4"><span class="muted">Libellé</span><br><b>' + esc(c.label) + '</b></div>' +
-    '<div class="column is-12"><span class="muted">Drive</span> ' + (c.driveUrl ? '<a href="' + esc(c.driveUrl) + '" target="_blank" rel="noopener">Ouvrir le contrat</a>' : '<span class="muted">aucun lien</span>') + (c.notes ? ' &nbsp;·&nbsp; <span class="muted">Notes :</span> ' + esc(c.notes) : '') + '</div></div></div>' +
+    '<div class="column is-12"><span class="muted">Fichiers</span> ' + filesHtml(c) + ' <button class="button is-small is-light-orange" onclick="dropboxDialog(\'' + c.id + '\')">📎 Importer dans Dropbox</button>' + (c.driveUrl ? ' &nbsp;·&nbsp; <a href="' + esc(c.driveUrl) + '" target="_blank" rel="noopener">Lien Drive</a>' : '') + (c.notes ? ' &nbsp;·&nbsp; <span class="muted">Notes :</span> ' + esc(c.notes) : '') + '</div></div></div>' +
     '<div class="box"><div class="box-h"><h2>Suivi des 8 étapes</h2><span class="sub">' + p.done + ' / ' + p.total + ' étapes</span></div>' + stepHtml + '</div>' +
     '<div class="box"><div class="box-h"><h2>Campagnes</h2><div><span class="sub">Total ' + eur(campSum) + ' / ' + eur(c.amountHT) + (Math.abs(campDiff) > 0.01 ? ' <b style="color:var(--danger)">(écart ' + eur(campDiff) + ')</b>' : '') + '</span> ' + (mgr ? '<button class="button is-small is-primary" onclick="campForm(\'' + c.id + '\')">+ Campagne</button>' : '') + '</div></div>' +
     (camps.length ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Campagne</th><th>Période</th><th class="num">HT</th><th class="num">Spots</th><th>Antenne</th><th></th></tr></thead><tbody>' + campRows + '</tbody></table></div>' : '<div class="empty">Aucune campagne enregistrée.</div>') + '</div>' +
@@ -1236,7 +1337,7 @@ function openSettings() {
       '<div class="box"><div class="box-h"><h2>Utilisateurs</h2><button class="button is-small is-primary" id="addUser">+ Ajouter</button></div><table class="table is-fullwidth"><thead><tr><th>Nom</th><th>Rôle</th><th>Lié au commercial</th><th></th></tr></thead><tbody>' +
       db.users.map(u => '<tr><td><input class="input is-small" value="' + esc(u.name) + '" onchange="setUser(\'' + u.id + '\',\'name\',this.value)"></td><td><div class="select is-small"><select onchange="setUser(\'' + u.id + '\',\'role\',this.value)">' + opts(Object.keys(ROLES).map(k => ({ v: k, l: ROLES[k] })), u.role) + '</select></div></td><td><div class="select is-small"><select onchange="setUser(\'' + u.id + '\',\'sellerId\',this.value)">' + opts([{ v: '', l: '—' }].concat(db.sellers.map(s => ({ v: s.id, l: s.name }))), u.sellerId) + '</select></div></td><td class="num"><button class="button is-small" onclick="delUser(\'' + u.id + '\')">✕</button></td></tr>').join('') + '</tbody></table>' +
       '<p class="help">Administrateur : tout. Gestion : tout sauf paramètres et suppressions. Commercial : uniquement ses contrats, campagnes et commissions (lecture).</p></div>' +
-      '<div class="box"><div class="box-h"><h2>Données</h2></div><div class="bar"><button class="button is-light-orange" onclick="exportJSON()">Exporter (JSON)</button><label class="button is-light-orange">Importer<input type="file" accept=".json" hidden onchange="importJSON(this.files[0])"></label><button class="button is-light-orange" onclick="loadDemo()">Charger des données de démo</button><button class="button is-danger is-light" onclick="resetAll()">Tout effacer</button></div>' +
+      dbxSettingsBox() + '<div class="box"><div class="box-h"><h2>Données</h2></div><div class="bar"><button class="button is-light-orange" onclick="exportJSON()">Exporter (JSON)</button><label class="button is-light-orange">Importer<input type="file" accept=".json" hidden onchange="importJSON(this.files[0])"></label><button class="button is-light-orange" onclick="loadDemo()">Charger des données de démo</button><button class="button is-danger is-light" onclick="resetAll()">Tout effacer</button></div>' +
       '<p class="help">Les données sont enregistrées dans ce navigateur. Faites des exports réguliers en attendant le branchement sur une base partagée.</p></div>' +
       '<div class="box"><div class="box-h"><h2>Journal d\'audit</h2><span class="sub">50 dernières actions</span></div><div class="tw" style="max-height:260px;overflow:auto"><table class="table is-fullwidth is-narrow"><tbody>' +
       db.log.slice(0, 50).map(l => '<tr><td>' + new Date(l.ts).toLocaleString('fr-FR') + '</td><td>' + esc(l.user) + '</td><td>' + esc(l.action) + ' · ' + esc(l.entity) + '</td><td class="muted">' + esc(l.detail) + '</td></tr>').join('') + '</tbody></table></div></div>';
@@ -1255,10 +1356,10 @@ function setUser(id, k, v) {
   u[k] = k === 'name' ? (v.trim() || u.name) : v; audit('Modification', 'Utilisateur', id, u.name + ' · ' + u.role); redraw();
 }
 function delUser(id) { const u = db.users.find(x => x.id === id); if (u.role === 'admin' && db.users.filter(x => x.role === 'admin').length < 2) return errBox('Il doit rester au moins un administrateur.'); if (id === meId) return errBox('Vous ne pouvez pas supprimer votre propre profil.'); db.users = db.users.filter(x => x.id !== id); redraw(); }
-function exportJSON() { dl('commercial-tool-' + today() + '.json', JSON.stringify(db, null, 2), 'application/json'); }
+function exportJSON() { const d = JSON.parse(JSON.stringify(db)); if (d.settings && d.settings.dropbox) d.settings.dropbox.token = ''; dl('commercial-tool-' + today() + '.json', JSON.stringify(d, null, 2), 'application/json'); }
 function importJSON(file) {
   if (!file) return; const r = new FileReader();
-  r.onload = () => { try { const d = JSON.parse(r.result); if (!d.contracts || !d.users) throw 0; if (!confirm('Remplacer toutes les données actuelles par ce fichier ?')) return; db = Object.assign(Store.blank(), d); meId = db.users[0].id; Store.save(); renderAll(); toast('Données importées'); if (window.redrawSettings) window.redrawSettings(); } catch (e) { errBox('Fichier invalide.'); } };
+  r.onload = () => { try { const d = JSON.parse(r.result); if (!d.contracts || !d.users) throw 0; if (!confirm('Remplacer toutes les données actuelles par ce fichier ?')) return; const oldTok = dbx().token; db = Object.assign(Store.blank(), d); if (!dbx().token) dbx().token = oldTok; meId = db.users[0].id; Store.save(); renderAll(); toast('Données importées'); if (window.redrawSettings) window.redrawSettings(); } catch (e) { errBox('Fichier invalide.'); } };
   r.readAsText(file);
 }
 function resetAll() { if (!confirm('Effacer TOUTES les données ? Pensez à exporter avant.') || !confirm('Confirmer la suppression définitive.')) return; db = Store.blank(); meId = 'u1'; Store.save(); renderAll(); if (window.redrawSettings) window.redrawSettings(); }
