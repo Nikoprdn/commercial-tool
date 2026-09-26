@@ -1,1 +1,178 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Commercial Tool</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+/* ==========================================================
+   CHARTE — Radio Monaco
+   Orange       : CO M45 Y100 K0  · R245 G156 B0  · #F59C00
+   Orange foncé : CO M45 Y100 K20 · R205 G134 B0  · #D08600
+   Déclinaisons de l'orange : 100 / 75 / 50 / 25 %
+   ========================================================== */
+:root{
+  --orange:      #F59C00;
+  --orange-75:   #F8B540;
+  --orange-50:   #FACE80;
+  --orange-25:   #FDE6BF;
+  --orange-dark: #D08600;
 
+  --ink:         #33291A;               /* texte brun très foncé */
+  --ink-soft:    rgba(51,41,26,.55);
+  --hdr-bg:      #FFFBF4;               /* header : crème très pâle */
+  --page-bg:     #F7F4EE;               /* fond de page neutre chaud */
+  --card:        #FFFFFF;
+  --border:      rgba(51,41,26,.12);
+  --hdr-h:       116px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{background:var(--page-bg);}
+body{color:var(--ink);min-height:100vh;font-family:'Inter',sans-serif;}
+
+/* ───────────────────────── HEADER ───────────────────────── */
+.hdr{
+  background:var(--hdr-bg);
+  height:var(--hdr-h);
+  display:grid;
+  grid-template-columns:240px 1fr auto auto;
+  align-items:stretch;
+  position:sticky;top:0;z-index:100;overflow:hidden;
+  border-bottom:3px solid var(--orange);
+  box-shadow:0 2px 8px rgba(51,41,26,.06);
+}
+
+/* Bloc logo */
+.hdr-brand{
+  display:flex;align-items:center;justify-content:center;gap:12px;
+  padding:0 20px;
+  border-right:1px solid var(--border);
+  overflow:hidden;
+}
+.hdr-brand svg{width:48px;height:48px;flex-shrink:0;display:block;}
+.hdr-brand-txt{
+  display:flex;flex-direction:column;line-height:1;
+  font-family:'Barlow Condensed',sans-serif;font-weight:800;
+  font-size:20px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink);
+}
+.hdr-brand-txt span{color:var(--orange);}
+
+/* Navigation */
+.hdr-nav{display:flex;align-items:stretch;justify-content:center;flex:1;}
+.nav-btn{
+  position:relative;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:7px;
+  padding:0 22px;border:none;background:transparent;
+  font-family:'Inter',sans-serif;font-size:12px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;
+  color:var(--ink-soft);cursor:pointer;
+  transition:color .18s,background .18s;
+  border-bottom:3px solid transparent;white-space:nowrap;
+}
+.nav-btn::after{content:'';position:absolute;right:0;top:20%;bottom:20%;width:1px;background:var(--border);}
+.nav-btn:last-child::after{display:none;}
+.nav-btn:hover{color:var(--ink);background:var(--orange-25);}
+.nav-btn.active{color:var(--orange-dark);background:var(--orange-25);border-bottom-color:var(--orange);}
+.nav-btn-ico{font-size:24px;line-height:1;}
+.nav-btn-txt{white-space:normal;text-align:center;line-height:1.2;}
+
+/* Bouton à rayures (ex-Incidents) */
+.nav-btn-stripe{position:relative;overflow:hidden;border-left:1px solid var(--border);}
+.nav-btn-stripe::before{
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:repeating-linear-gradient(45deg,rgba(245,156,0,.14) 0px,rgba(245,156,0,.14) 10px,transparent 10px,transparent 20px);
+}
+.nav-btn-stripe .nav-btn-ico,.nav-btn-stripe .nav-btn-txt{position:relative;z-index:1;}
+
+/* Bloc droit : horloge + statut */
+.hdr-right{
+  display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;
+  padding:0 24px;border-left:1px solid var(--border);
+}
+.hdr-clock{
+  font-family:'Share Tech Mono',monospace;font-size:38px;font-weight:700;
+  color:var(--ink);letter-spacing:.02em;white-space:nowrap;
+}
+.hdr-status{display:flex;align-items:center;gap:8px;}
+.hdr-status-dot{width:8px;height:8px;border-radius:50%;background:var(--orange-dark);flex-shrink:0;}
+.hdr-status-name{font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:var(--ink);line-height:1;}
+.hdr-status-label{font-size:10px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:var(--ink-soft);margin-top:2px;}
+
+/* ───────────────────────── PAGES ───────────────────────── */
+.page{display:none;padding:36px 40px;}
+.page.active{display:block;}
+.placeholder{
+  background:var(--card);
+  border:2px dashed var(--border);
+  border-radius:8px;height:320px;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--orange-dark);font-family:'Share Tech Mono',monospace;font-size:13px;
+}
+</style>
+</head>
+<body>
+
+<!-- ======================= HEADER ======================= -->
+<div class="hdr">
+
+  <div class="hdr-brand">
+    <!-- Logo provisoire (à remplacer par le logo officiel) -->
+    <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="4" y="4" width="56" height="56" rx="14" fill="none" stroke="#F59C00" stroke-width="7"/>
+      <path d="M18 46V20h6l8 12 8-12h6v26h-6V31l-8 12-8-12v15z" fill="#F59C00"/>
+    </svg>
+    <div class="hdr-brand-txt"><span>Commercial</span>Tool</div>
+  </div>
+
+  <nav class="hdr-nav">
+    <button class="nav-btn active" onclick="showPage('accueil',this)"><span class="nav-btn-ico">&#127968;</span><span class="nav-btn-txt">Accueil</span></button>
+    <button class="nav-btn" onclick="showPage('page2',this)"><span class="nav-btn-ico">&#128188;</span><span class="nav-btn-txt">Sponsors</span></button>
+    <button class="nav-btn" onclick="showPage('page3',this)"><span class="nav-btn-ico">&#129309;</span><span class="nav-btn-txt">Clients</span></button>
+    <button class="nav-btn" onclick="showPage('page4',this)"><span class="nav-btn-ico">&#128197;</span><span class="nav-btn-txt">Planning</span></button>
+    <button class="nav-btn" onclick="showPage('page5',this)"><span class="nav-btn-ico">&#128200;</span><span class="nav-btn-txt">Reporting</span></button>
+  </nav>
+
+  <button class="nav-btn nav-btn-stripe" onclick="showPage('page6',this)">
+    <span class="nav-btn-ico">&#9888;&#65039;</span><span class="nav-btn-txt">Alertes</span>
+  </button>
+
+  <div class="hdr-right">
+    <div class="hdr-clock" id="clk">--:--:--</div>
+    <div class="hdr-status">
+      <span class="hdr-status-dot"></span>
+      <div>
+        <div class="hdr-status-name">Commercial Tool</div>
+        <div class="hdr-status-label">En attente</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================= PAGES (vides) ======================= -->
+<main class="container is-fluid">
+  <section id="accueil" class="page active"><div class="placeholder">[ Accueil ]</div></section>
+  <section id="page2"   class="page"><div class="placeholder">[ Sponsors ]</div></section>
+  <section id="page3"   class="page"><div class="placeholder">[ Clients ]</div></section>
+  <section id="page4"   class="page"><div class="placeholder">[ Planning ]</div></section>
+  <section id="page5"   class="page"><div class="placeholder">[ Reporting ]</div></section>
+  <section id="page6"   class="page"><div class="placeholder">[ Alertes ]</div></section>
+</main>
+
+<script>
+/* Horloge */
+function updateClock(){
+  document.getElementById('clk').textContent =
+    new Date().toLocaleTimeString('fr-FR',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+updateClock(); setInterval(updateClock,1000);
+
+/* Navigation */
+function showPage(id,btn){
+  document.querySelectorAll('.page').forEach(function(s){s.classList.remove('active');});
+  document.querySelectorAll('.nav-btn').forEach(function(b){b.classList.remove('active');});
+  var s=document.getElementById(id); if(s) s.classList.add('active');
+  if(btn) btn.classList.add('active');
+}
+</script>
+</body>
+</html>
