@@ -278,11 +278,12 @@ const Store = {
         { id: 'u3', name: 'Commercial 1', role: 'commercial', sellerId: 's2' }
       ],
       sellers: [{ id: 's1', name: 'Radio Monaco (direct)', rate: 0, direct: true }, { id: 's2', name: 'Commercial 1', rate: 10, direct: false }],
-      contracts: [], campaigns: [], bookings: [], invoices: [],
+      contracts: [], campaigns: [], bookings: [], invoices: [], tariffs: [],
       closures: {}, clientInfo: {}, odp: {}, settings: { tva: 20, payDelay: 30, remindDays: 7, checkDays: 7, antenna: 'Eric' }, log: []
     };
   },
   migrate(d) {   // anciennes données : un vendeur dont le nom contient « direct » est un client direct
+    d.tariffs = d.tariffs || [];
     d.sellers.forEach(s => { if (s.direct === undefined) s.direct = /direct/i.test(s.name); });
     return d;
   },
@@ -960,6 +961,81 @@ function dbxSettingsBox() {
 
 
 /* ==========================================================================
+   TARIFS : grille configurable (spots, sponsoring, autres) + calcul automatique du montant
+   Les montants déjà saisis ne changent jamais quand un tarif est modifié.
+   ========================================================================== */
+const T_KINDS = [{ v: 'spot', l: 'Spots' }, { v: 'sponsoring', l: 'Sponsoring' }, { v: 'autre', l: 'Autre' }];
+const T_UNITS = [{ v: 'spot', l: 'par spot' }, { v: 'jour', l: 'par jour' }, { v: 'semaine', l: 'par semaine' }, { v: 'mois', l: 'par mois' }, { v: 'forfait', l: 'forfait' }];
+const tariffs = () => db.tariffs || (db.tariffs = []);
+const tariffOf = id => tariffs().find(t => t.id === id);
+const unitLabel = u => (T_UNITS.find(x => x.v === u) || {}).l || u;
+/* « 100:5; 300:10 » = remise de 5 % dès 100 unités, 10 % dès 300 */
+function parseTiers(s) {
+  return String(s || '').split(/[;,]/).map(x => x.trim().split(':')).filter(a => a.length === 2).map(a => ({ min: num(a[0]), disc: num(a[1]) }))
+    .filter(t => t.min > 0 && t.disc > 0 && t.disc < 100).sort((a, b) => a.min - b.min);
+}
+function tariffPrice(t, qty, disc) {
+  const q = num(qty), tier = parseTiers(t.tiers).filter(x => q >= x.min).pop(), d1 = tier ? tier.disc : 0, d2 = Math.min(100, Math.max(0, num(disc)));
+  return { q, gross: round2(t.price * q), d1, d2, net: round2(t.price * q * (1 - d1 / 100) * (1 - d2 / 100)) };
+}
+function qtyFromDates(unit, s, e) {
+  const days = daysDiff(s, e) + 1; if (!(days > 0)) return '';
+  return unit === 'jour' ? days : unit === 'semaine' ? Math.ceil(days / 7) : Math.round(days / 30.4 * 10) / 10;
+}
+const pricingText = p => { const t = tariffOf(p.tid); return (t ? t.name : 'tarif supprimé') + ' × ' + p.qty + (num(p.disc) ? ' − ' + p.disc + ' %' : ''); };
+function calcHtml() {
+  const ts = tariffs();
+  if (!ts.length) return '<div class="notification is-light py-3 mb-3">Aucun tarif configuré : ajoutez-les dans <b>Paramètres → Tarifs</b> pour calculer les montants automatiquement.</div>';
+  return '<div class="box tcalc" style="background:var(--hdr-bg)"><div class="box-h"><h2>Calcul automatique du montant</h2><span class="sub">Optionnel — le montant reste modifiable</span></div><div class="columns is-multiline">' +
+    '<div class="column is-6">' + fld('Tarif', 'tid', '', { options: [{ v: '', l: '— Choisir un tarif —' }].concat(ts.map(t => ({ v: t.id, l: t.name + ' · ' + eur(t.price) + ' ' + unitLabel(t.unit) }))), onchange: 'tarifCalc(this.form)' }) + '</div>' +
+    '<div class="column is-3"><div class="field"><label class="label is-small">Quantité</label><input class="input" type="number" min="0" step="0.1" name="tqty" placeholder="auto" oninput="tarifCalc(this.form)"></div></div>' +
+    '<div class="column is-3"><div class="field"><label class="label is-small">Remise (%)</label><input class="input" type="number" min="0" max="100" step="0.1" name="tdisc" placeholder="0" oninput="tarifCalc(this.form)"></div></div></div>' +
+    '<div class="tres help" style="font-size:13px;color:var(--ink)"></div><button type="button" class="button is-small is-primary tuse mt-2" style="display:none" onclick="tarifUse(this.form)">Utiliser ce montant</button></div>';
+}
+window.tarifCalc = function (f) {
+  const t = tariffOf(f.elements.tid.value), out = $('.tres', f), btn = $('.tuse', f), el = n => f.elements[n];
+  delete f.dataset.tnet;
+  if (!t) { out.textContent = ''; btn.style.display = 'none'; return; }
+  let q = el('tqty').value, note = '';
+  if (q === '' && ['jour', 'semaine', 'mois'].includes(t.unit) && el('start') && el('end') && el('start').value && el('end').value) { q = qtyFromDates(t.unit, el('start').value, el('end').value); note = ' (déduit des dates de diffusion)'; }
+  if (q === '' && t.unit === 'spot' && el('spots') && el('spots').value) { q = el('spots').value; note = ' (nombre de spots du formulaire)'; }
+  if (q === '' && t.unit === 'forfait') q = 1;
+  if (q === '' || !(num(q) > 0)) { out.textContent = 'Indiquez la quantité (' + unitLabel(t.unit).replace('par ', '') + 's).'; btn.style.display = 'none'; return; }
+  const r = tariffPrice(t, q, el('tdisc').value);
+  out.innerHTML = String(r.q).replace('.', ',') + ' × ' + eur(t.price) + ' = ' + eur(r.gross) + note + (r.d1 ? ' · remise dégressive ' + r.d1 + ' %' : '') + (r.d2 ? ' · remise ' + r.d2 + ' %' : '') + ' → <b>' + eur(r.net) + ' HT</b>';
+  f.dataset.tnet = r.net; f.dataset.tq = r.q; f.dataset.tunit = t.unit; btn.style.display = '';
+};
+window.tarifUse = function (f) {
+  if (f.dataset.tnet === undefined) return;
+  f.elements.amountHT.value = f.dataset.tnet;
+  if (f.dataset.tunit === 'spot' && f.elements.spots) f.elements.spots.value = Math.round(+f.dataset.tq);
+  toast('Montant reporté : ' + eur(+f.dataset.tnet));
+};
+/* Paramètres */
+function tarifSettingsBox() {
+  const rows = tariffs().map(t => '<tr><td><input class="input is-small" value="' + esc(t.name) + '" onchange="setTariff(\'' + t.id + '\',\'name\',this.value)"></td>' +
+    '<td><div class="select is-small"><select onchange="setTariff(\'' + t.id + '\',\'kind\',this.value)">' + opts(T_KINDS, t.kind) + '</select></div></td>' +
+    '<td><div class="select is-small"><select onchange="setTariff(\'' + t.id + '\',\'unit\',this.value)">' + opts(T_UNITS, t.unit) + '</select></div></td>' +
+    '<td><input class="input is-small" type="number" min="0" step="0.01" value="' + t.price + '" onchange="setTariff(\'' + t.id + '\',\'price\',this.value)"></td>' +
+    '<td><input class="input is-small" placeholder="ex. 100:5; 300:10" value="' + esc(t.tiers || '') + '" onchange="setTariff(\'' + t.id + '\',\'tiers\',this.value)"></td>' +
+    '<td class="num"><button class="button is-small" onclick="delTariff(\'' + t.id + '\')">✕</button></td></tr>').join('');
+  return '<div class="box"><div class="box-h"><h2>Tarifs</h2><button class="button is-small is-primary" onclick="addTariff()">+ Ajouter</button></div>' +
+    (rows ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Désignation</th><th>Type</th><th>Unité</th><th>Prix HT (€)</th><th>Dégressif (quantité:remise %)</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<div class="empty">Aucun tarif.</div>') +
+    '<p class="help">Ces tarifs alimentent le calcul automatique dans le formulaire de contrat et de campagne. Modifier un tarif ne change jamais les montants déjà enregistrés. Dégressif : « 100:5; 300:10 » = 5 % de remise dès 100 unités, 10 % dès 300.</p></div>';
+}
+function addTariff() { if (!isAdmin()) return; tariffs().push({ id: uid(), name: 'Nouveau tarif', kind: 'spot', unit: 'spot', price: 0, tiers: '' }); audit('Création', 'Tarif', '', 'Nouveau tarif'); redraw(); }
+function setTariff(id, k, v) {
+  const t = tariffOf(id); if (!t || !isAdmin()) return;
+  if (k === 'price') { const n = num(v); if (n < 0) { errBox('Le prix ne peut pas être négatif.'); return redraw(); } t.price = n; }
+  else t[k] = k === 'name' ? (v.trim() || t.name) : v;
+  audit('Modification', 'Tarif', id, t.name + ' · ' + eur(t.price) + ' ' + unitLabel(t.unit)); redraw();
+}
+function delTariff(id) { const t = tariffOf(id); if (!t || !isAdmin() || !confirm('Supprimer le tarif « ' + t.name + ' » ? Les montants déjà saisis ne sont pas modifiés.')) return; db.tariffs = tariffs().filter(x => x.id !== id); audit('Suppression', 'Tarif', id, t.name); redraw(); }
+/* Recalcul dès qu'un champ du formulaire change (dates, nombre de spots…) */
+['input', 'change'].forEach(ev => document.addEventListener(ev, e => { const f = e.target && e.target.form; if (f && $('.tcalc', f) && e.target.name !== 'amountHT') window.tarifCalc(f); }));
+
+
+/* ==========================================================================
    5. ÉTAT & ROUTAGE
    ========================================================================== */
 let PAGE = 'accueil';
@@ -1017,7 +1093,7 @@ function contractForm(id) {
       fld('Lien du contrat (optionnel)', 'driveUrl', c ? c.driveUrl : '', { type: 'url', ph: 'https://drive.google.com/…' }),
       c && isAdmin() ? fld('N° ODP (modifiable par un administrateur)', 'odp', c.odp) :
         '<div class="field"><label class="label is-small">N° ODP</label><p class="help" id="odp-info">' + (c ? esc(c.odp) : '') + '</p></div>'
-    ) + fld('Notes', 'notes', c ? c.notes : '', { type: 'textarea' }) + '</form>';
+    ) + calcHtml() + fld('Notes', 'notes', c ? c.notes : '', { type: 'textarea' }) + '</form>';
   const h = openModal({
     title: c ? 'Modifier le contrat' : 'Nouveau contrat', body, buttons: [
       { label: 'Enregistrer', cls: 'is-primary', onClick: (el, close) => saveContract(c, fdata(el), close) },
@@ -1066,12 +1142,14 @@ function saveContract(c, f, close) {
       audit('Modification ODP', 'Contrat', c.id, c.odp + ' → ' + o); c.odp = o;
     }
     Object.assign(c, { client, sellerId: f.sellerId, signedDate: refDate, type, label: f.label.trim(), amountHT: amount, driveUrl: f.driveUrl || '', notes: f.notes || '' });
+    if (f.tid && num(f.tqty) > 0) c.pricing = { tid: f.tid, qty: num(f.tqty), disc: num(f.tdisc) };
     if (!comm) c.proposalDate = f.proposalDate || c.proposalDate || '';
     audit('Modification', 'Contrat', c.id, c.odp + ' · ' + client + ' · ' + eur(amount));
     close(); commit(); toast('Contrat modifié');
   } else {
     const odpDate = comm ? f.signedDate : (f.proposalDate || refDate);
     const n = { id: uid(), odp: assignOdp(odpDate, type), client, sellerId: f.sellerId, status, proposalDate: comm ? '' : odpDate, signedDate: refDate, type, label: f.label.trim(), amountHT: amount, driveUrl: f.driveUrl || '', filed: false, tasks: {}, notes: f.notes || '', createdAt: new Date().toISOString(), createdBy: me().name };
+    if (f.tid && num(f.tqty) > 0) n.pricing = { tid: f.tid, qty: num(f.tqty), disc: num(f.tdisc) };
     db.contracts.push(n); audit('Création', 'Contrat', n.id, n.odp + ' · ' + client + ' · ' + eur(amount) + (status === 'proposition' ? ' (proposition)' : ''));
     close(); commit(); toast((status === 'proposition' ? 'Proposition créée' : 'Contrat créé') + ' : ' + n.odp); openContract(n.id);
     if (signed && !comm) dropboxDialog(n.id);
@@ -1132,7 +1210,7 @@ function campForm(cid, id) {
     fld('Nombre de spots (total)', 'spots', cp && cp.spots ? cp.spots : '', { type: 'number', step: '1', help: 'Optionnel. Réparti au prorata des jours de diffusion pour les stats par année.' }),
     fld('Début de diffusion', 'start', cp ? cp.start : '', { type: 'date', req: true }),
     fld('Fin de diffusion', 'end', cp ? cp.end : '', { type: 'date', req: true }),
-    fld('Statut antenne', 'antenne', cp ? cp.antenne : 'none', { options: isSigned(c) ? ANTENNE : ANTENNE.slice(0, 1), help: isSigned(c) ? '' : 'Disponible après signature du contrat.' })) + '</form>';
+    fld('Statut antenne', 'antenne', cp ? cp.antenne : 'none', { options: isSigned(c) ? ANTENNE : ANTENNE.slice(0, 1), help: isSigned(c) ? '' : 'Disponible après signature du contrat.' })) + (isComm(c) ? '' : calcHtml()) + '</form>';
   openModal({
     title: cp ? 'Modifier la campagne' : 'Nouvelle campagne', body, buttons: [
       {
@@ -1345,7 +1423,7 @@ function renderContractModal(m) {
     '<div class="box"><div class="box-h"><h2>Informations ' + STATUS_TAG(c) + '</h2><div>' + (mgr && isProp(c) ? '<button class="button is-small is-primary" onclick="signForm(\'' + c.id + '\')">✍ Marquer comme signé</button> <button class="button is-small" onclick="loseContract(\'' + c.id + '\')">Perdue</button> ' : '') + (isAdmin() && isLost(c) ? '<button class="button is-small is-light-orange" onclick="reopenProposal(\'' + c.id + '\')">Rouvrir</button> ' : '') + (mgr ? '<button class="button is-small is-light-orange" onclick="contractForm(\'' + c.id + '\')">Modifier</button> ' : '') + (isAdmin() ? '<button class="button is-small is-danger is-light" onclick="delContract(\'' + c.id + '\')">Supprimer</button>' : '') + '</div></div>' +
     '<div class="columns is-multiline"><div class="column is-4"><span class="muted">Client</span><br><b>' + esc(c.client) + '</b></div><div class="column is-4"><span class="muted">Commercial</span><br><b>' + esc(sellerName(c.sellerId)) + '</b></div><div class="column is-4"><span class="muted">Type · origine</span><br>' + typeTag(c) + ' <b>' + (isDirect(c) ? 'Client direct' : 'Apporté par un commercial') + '</b></div>' +
     '<div class="column is-4"><span class="muted">' + (isProp(c) ? 'Proposé le' : 'Signé le') + '</span><br><b>' + fdate(c.signedDate) + '</b>' + (c.proposalDate && isSigned(c) && !isComm(c) ? ' <small class="muted">· ODP créé le ' + fdate(c.proposalDate) + '</small>' : '') + '</div><div class="column is-4"><span class="muted">Montant HT</span><br><b>' + (isComm(c) ? 'Non facturé' : eur(c.amountHT)) + '</b></div><div class="column is-4"><span class="muted">Libellé</span><br><b>' + esc(c.label) + '</b></div>' +
-    '<div class="column is-12"><span class="muted">Fichiers</span> ' + filesHtml(c) + ' <button class="button is-small is-light-orange" onclick="dropboxDialog(\'' + c.id + '\')">📎 Importer dans Dropbox</button>' + (c.driveUrl ? ' &nbsp;·&nbsp; <a href="' + esc(c.driveUrl) + '" target="_blank" rel="noopener">Lien Drive</a>' : '') + (c.notes ? ' &nbsp;·&nbsp; <span class="muted">Notes :</span> ' + esc(c.notes) : '') + '</div></div></div>' +
+    '<div class="column is-12"><span class="muted">Fichiers</span> ' + filesHtml(c) + ' <button class="button is-small is-light-orange" onclick="dropboxDialog(\'' + c.id + '\')">📎 Importer dans Dropbox</button>' + (c.driveUrl ? ' &nbsp;·&nbsp; <a href="' + esc(c.driveUrl) + '" target="_blank" rel="noopener">Lien Drive</a>' : '') + (c.pricing ? ' &nbsp;·&nbsp; <span class="muted">Tarif :</span> ' + esc(pricingText(c.pricing)) : '') + (c.notes ? ' &nbsp;·&nbsp; <span class="muted">Notes :</span> ' + esc(c.notes) : '') + '</div></div></div>' +
     '<div class="box"><div class="box-h"><h2>Suivi des 8 étapes</h2><span class="sub">' + p.done + ' / ' + p.total + ' étapes</span></div>' + stepHtml + '</div>' +
     '<div class="box"><div class="box-h"><h2>Campagnes</h2><div><span class="sub">Total ' + eur(campSum) + ' / ' + eur(c.amountHT) + (Math.abs(campDiff) > 0.01 && !isComm(c) ? ' <b style="color:var(--danger)">(écart ' + eur(campDiff) + ')</b>' : '') + (isCA(c) ? ' · reste à diffuser ' + eur(resteDiffuser(c)) : '') + '</span> ' + (mgr && !isLost(c) ? '<button class="button is-small is-primary" onclick="campForm(\'' + c.id + '\')">+ Campagne</button>' : '') + '</div></div>' +
     (camps.length ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Campagne</th><th>Période</th><th class="num">HT</th><th class="num">Spots</th><th>Antenne</th><th></th></tr></thead><tbody>' + campRows + '</tbody></table></div>' : '<div class="empty">Aucune campagne enregistrée.</div>') + '</div>' +
@@ -1597,7 +1675,7 @@ function openSettings() {
       '<div class="box"><div class="box-h"><h2>Utilisateurs</h2><button class="button is-small is-primary" id="addUser">+ Ajouter</button></div><table class="table is-fullwidth"><thead><tr><th>Nom</th><th>Rôle</th><th>Lié au commercial</th><th></th></tr></thead><tbody>' +
       db.users.map(u => '<tr><td><input class="input is-small" value="' + esc(u.name) + '" onchange="setUser(\'' + u.id + '\',\'name\',this.value)"></td><td><div class="select is-small"><select onchange="setUser(\'' + u.id + '\',\'role\',this.value)">' + opts(Object.keys(ROLES).map(k => ({ v: k, l: ROLES[k] })), u.role) + '</select></div></td><td><div class="select is-small"><select onchange="setUser(\'' + u.id + '\',\'sellerId\',this.value)">' + opts([{ v: '', l: '—' }].concat(db.sellers.map(s => ({ v: s.id, l: s.name }))), u.sellerId) + '</select></div></td><td class="num"><button class="button is-small" onclick="delUser(\'' + u.id + '\')">✕</button></td></tr>').join('') + '</tbody></table>' +
       '<p class="help">Administrateur : tout. Gestion : tout sauf paramètres et suppressions. Commercial : uniquement ses contrats, campagnes et commissions (lecture).</p></div>' +
-      dbxSettingsBox() + '<div class="box"><div class="box-h"><h2>Données</h2></div><div class="bar"><button class="button is-light-orange" onclick="exportJSON()">Exporter (JSON)</button><label class="button is-light-orange">Importer<input type="file" accept=".json" hidden onchange="importJSON(this.files[0])"></label><button class="button is-light-orange" onclick="loadDemo()">Charger des données de démo</button><button class="button is-danger is-light" onclick="resetAll()">Tout effacer</button></div>' +
+      tarifSettingsBox() + dbxSettingsBox() + '<div class="box"><div class="box-h"><h2>Données</h2></div><div class="bar"><button class="button is-light-orange" onclick="exportJSON()">Exporter (JSON)</button><label class="button is-light-orange">Importer<input type="file" accept=".json" hidden onchange="importJSON(this.files[0])"></label><button class="button is-light-orange" onclick="loadDemo()">Charger des données de démo</button><button class="button is-danger is-light" onclick="resetAll()">Tout effacer</button></div>' +
       '<p class="help">Les données sont enregistrées dans ce navigateur. Faites des exports réguliers en attendant le branchement sur une base partagée.</p></div>' +
       '<div class="box"><div class="box-h"><h2>Journal d\'audit</h2><span class="sub">50 dernières actions</span></div><div class="tw" style="max-height:260px;overflow:auto"><table class="table is-fullwidth is-narrow"><tbody>' +
       db.log.slice(0, 50).map(l => '<tr><td>' + new Date(l.ts).toLocaleString('fr-FR') + '</td><td>' + esc(l.user) + '</td><td>' + esc(l.action) + ' · ' + esc(l.entity) + '</td><td class="muted">' + esc(l.detail) + '</td></tr>').join('') + '</tbody></table></div></div>';
@@ -1634,6 +1712,7 @@ function loadDemo() {
   const done = (...k) => Object.fromEntries(k.map(x => [x, { done: true, date: addDays(t, -10), by: 'Démo' }]));
   const cp = (c, s, e, a, ant, spots, chk) => { const x = { id: uid(), contractId: c.id, label: c.label, start: s, end: e, amountHT: a, spots: spots || 0, antenne: ant, sentDate: ant !== 'none' ? addDays(t, -5) : '', confirmedDate: ant === 'confirmed' ? addDays(t, -3) : '', lastCheck: chk || '' }; db.campaigns.push(x); return x; };
   const iv = (c, camp, no, ago, ht, rate, pays, rem) => db.invoices.push({ id: uid(), contractId: c.id, campaignId: camp ? camp.id : '', invoiceNo: no, invoiceDate: addDays(t, -ago), amountHT: ht, tva: 20, commRate: rate, payments: (pays || []).map(p => ({ id: uid(), date: addDays(t, -p[0]), mode: p[1], amount: p[2], ref: '' })), commPaid: [], reminders: (rem || []).map(x => ({ id: uid(), date: addDays(t, -x[0]), mode: x[1], note: x[2], next: x[3] ? addDays(t, -x[3]) : '', by: 'Démo' })), note: '' });
+  if (!tariffs().length) tariffs().push({ id: uid(), name: '[DÉMO] Spot 30 s', kind: 'spot', unit: 'spot', price: 45, tiers: '100:5; 300:10' }, { id: uid(), name: '[DÉMO] Sponsoring émission', kind: 'sponsoring', unit: 'mois', price: 1200, tiers: '6:5; 12:10' }, { id: uid(), name: '[DÉMO] Pack événement', kind: 'autre', unit: 'forfait', price: 2500, tiers: '' });
   const y = +t.slice(0, 4);
   const a = mk('[DÉMO] Boulangerie Azur', 's2', 40, 'publicite', 'Campagne spots printemps', 6000, true, 'signe', done('clientdocs', 'spot'));
   const ca = cp(a, addDays(t, -30), addDays(t, 60), 6000, 'confirmed', 420, addDays(t, -2)); iv(a, ca, 'DEMO-001', 30, 6000, 10, [[10, 'VIRMT', 3600]]);
