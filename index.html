@@ -80,7 +80,44 @@ body{color:var(--ink);min-height:100vh;font-family:'Inter',sans-serif;font-size:
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:22px;}
 .kpi{background:var(--card);border:1px solid var(--border);border-top:3px solid var(--orange);border-radius:8px;padding:14px 16px;}
 .kpi.danger{border-top-color:var(--danger);}
+.kpis.cmp{margin-bottom:10px;gap:10px;}
+.kpis.cmp .kpi{padding:10px 14px;}
+.kpis.cmp .kpi-v{font-size:26px;}
 .kpis.k6{grid-template-columns:repeat(6,minmax(0,1fr));}
+/* Fenêtres peu larges : l'en-tête reste entièrement visible */
+@media (max-width:1180px){
+  .hdr{grid-template-columns:172px 1fr auto auto;}
+  .hdr-brand{padding:0 10px;gap:8px;}
+  .hdr-brand svg{width:36px;height:36px;}
+  .hdr-brand-txt{font-size:14px;}
+  .nav-btn{padding:0 9px;font-size:10.5px;}
+  .nav-btn-ico{font-size:20px;}
+  .hdr-right{padding:0 12px;}
+  .hdr-clock{font-size:26px;}
+  .hdr-user select{max-width:96px;}
+  .page{padding-left:20px;padding-right:20px;}
+}
+@media (max-width:860px){
+  .hdr-brand-txt{display:none;}
+  .hdr{grid-template-columns:60px 1fr auto auto;}
+  .nav-btn-txt{font-size:9.5px;}
+}
+/* Fenêtres peu hautes : en-tête et cartes plus compacts pour que les encarts restent visibles */
+@media (max-height:700px){
+  :root{--hdr-h:76px;}
+  .hdr-clock{font-size:26px;}
+  .hdr-role{display:none;}
+  .nav-btn{gap:3px;padding:0 16px;}
+  .nav-btn-ico{font-size:18px;}
+  .badge{top:10px;}
+  .hdr-brand svg{width:34px;height:34px;}
+  .page{padding-top:16px;}
+  .kpis.cmp .kpi{padding:6px 12px;}
+  .kpis.cmp .kpi-v{font-size:20px;}
+  .kpis.cmp .kpi-s{font-size:10.5px;}
+  .box{padding:12px 14px;margin-bottom:14px;}
+  .box-h{margin-bottom:8px;}
+}
 .kpis.k6 .kpi-v{font-size:25px;}
 @media(max-width:1000px){.kpis.k6{grid-template-columns:repeat(2,minmax(0,1fr));}}
 .kpi-l{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);}
@@ -201,7 +238,9 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const eur = n => (Number(n) || 0).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+/* Formats français écrits à la main : certains navigateurs (Safari) ne mettent pas d'espace dans « 1450 » */
+const fmtNum = (n, dec = 2) => { n = Number(n) || 0; const neg = n < 0 && Math.abs(n) >= Math.pow(10, -dec) / 2, s = Math.abs(n).toFixed(dec).split('.'); return (neg ? '-' : '') + s[0].replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0') + (s[1] ? ',' + s[1] : ''); };
+const eur = n => fmtNum(n, 2) + '\u00a0€';
 const p2 = n => String(n).padStart(2, '0');
 const isoOf = d => d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
 const today = () => isoOf(new Date());
@@ -536,8 +575,8 @@ const fpct = v => v === null ? '—' : (v >= 0 ? '+' : '') + v.toLocaleString('f
    3c. GRAPHIQUES SVG (sans librairie) — année en cours en orange, années passées en gris chaud
    ========================================================================== */
 const CH = { cur: '#F59C00', prev: '#8A7F6E', prev2: '#CFC6B6', alt: '#5B4A2F' };
-const kEur = v => Math.abs(v) >= 1000 ? (v / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' k€' : Math.round(v) + ' €';
-const kInt = v => Math.round(v).toLocaleString('fr-FR');
+const kEur = v => Math.abs(v) >= 1000 ? (Math.round(v / 100) / 10).toString().replace('.', ',') + ' k€' : Math.round(v) + ' €';
+const kInt = v => fmtNum(Math.round(v), 0);
 function niceScale(max) {
   if (!(max > 0)) return { max: 1, ticks: [0, 1] };
   const raw = max / 4, mag = Math.pow(10, Math.floor(Math.log10(raw))), nm = raw / mag;
@@ -545,6 +584,9 @@ function niceScale(max) {
   for (let v = 0; v <= top + 1e-9; v += step) ticks.push(v);
   return { max: top, ticks };
 }
+/* Dimensions : le graphique épouse la largeur de son encart et tient dans la hauteur de la fenêtre */
+const chartW = (el, half) => { const w = (el && el.clientWidth) || 900; const inner = el && el.classList && el.classList.contains('modal-card-body') ? w - 40 : w - 80; return Math.max(320, Math.round(half ? (inner - 20) / 2 - 38 : inner - 38)); };
+const chartH = () => Math.max(140, Math.min(340, window.innerHeight - (window.innerHeight < 700 ? 420 : 450)));
 const tipAttr = (title, rows) => esc(JSON.stringify({ t: title, r: rows }));
 function legendHtml(series, kind) {
   return '<div class="legend">' + series.map(s => '<span class="lg">' + (kind === 'line' ? '<i class="lg-line" style="border-color:' + s.color + '"></i>' : '<i class="lg-sw" style="background:' + s.color + '"></i>') + esc(s.name) + '</span>').join('') + '</div>';
@@ -628,6 +670,7 @@ function lineChart(o) {
    ========================================================================== */
 const MSHORT = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
 function vCompare(y, yearSel) {
+  const CW = chartW($('#' + PAGE), false), CHT = chartH();
   const C = ST.cmp, cur = today(), curY = +cur.slice(0, 4), curM = +cur.slice(5, 7);
   const isCur = y === curY, anchorM = isCur ? curM : 12, anchorYm = y + '-' + p2(anchorM);
   const mval = ym => C.metric === 'signe' ? caSigneMonth(ym) : caDiffuseMonth(ym);
@@ -638,7 +681,7 @@ function vCompare(y, yearSel) {
   if (C.view === 'roll') {
     const yms = Array.from({ length: 12 }, (_, i) => addMonths(anchorYm, i - 11));
     const s = [{ name: 'Mois concerné', color: CH.cur, vals: yms.map(mval) }, { name: 'Même mois l\'an passé', color: CH.prev, vals: yms.map(k => mval(addMonths(k, -12))) }];
-    chart = barChart({ cats: yms.map(k => MSHORT[+k.slice(5) - 1] + ' ' + k.slice(2, 4)), series: s, fmtTick: kEur, fmtVal: eur, tipTitle: i => ymLabel(yms[i]) + ' vs ' + ymLabel(addMonths(yms[i], -12)), label: metricLbl + ' : 12 derniers mois vs mêmes mois de l\'an passé', first: 'Mois' });
+    chart = barChart({ cats: yms.map(k => MSHORT[+k.slice(5) - 1] + ' ' + k.slice(2, 4)), series: s, fmtTick: kEur, fmtVal: eur, w: CW, h: CHT, tipTitle: i => ymLabel(yms[i]) + ' vs ' + ymLabel(addMonths(yms[i], -12)), label: metricLbl + ' : 12 derniers mois vs mêmes mois de l\'an passé', first: 'Mois' });
   } else {
     const s = yrs.map((yy, k) => {
       let v = yr(yy);
@@ -647,8 +690,8 @@ function vCompare(y, yearSel) {
       return { name: String(yy), color: cols[k], vals: v, from: C.view === 'month' && live ? curM : null };
     });
     chart = C.view === 'cumul'
-      ? lineChart({ cats: MSHORT, series: s, fmtTick: kEur, fmtVal: eur, label: metricLbl + ' cumulé par année', first: 'Mois' })
-      : barChart({ cats: MSHORT, series: s, fmtTick: kEur, fmtVal: eur, tipTitle: i => MONTHS[i], label: metricLbl + ' par mois et par année', first: 'Mois' });
+      ? lineChart({ cats: MSHORT, series: s, fmtTick: kEur, fmtVal: eur, w: CW, h: CHT, label: metricLbl + ' cumulé par année', first: 'Mois' })
+      : barChart({ cats: MSHORT, series: s, fmtTick: kEur, fmtVal: eur, w: CW, h: CHT, tipTitle: i => MONTHS[i], label: metricLbl + ' par mois et par année', first: 'Mois' });
   }
   /* Cartes de variation */
   const ytd = yy => sum(Array.from({ length: anchorM }, (_, i) => i), i => mval(yy + '-' + p2(i + 1)));
@@ -667,7 +710,7 @@ function vCompare(y, yearSel) {
   return '<div class="box"><div class="box-h"><h2>Comparatif · ' + metricLbl + '</h2><div class="bar" style="margin:0">' + yearSel + '<div class="buttons has-addons mb-0">' + tg('', 'metric', 'signe', 'CA signé') + tg('', 'metric', 'diffuse', 'CA diffusé') + '</div>' +
     '<div class="buttons has-addons mb-0">' + tg('', 'view', 'month', 'Par mois') + tg('', 'view', 'cumul', 'Cumulé') + tg('', 'view', 'roll', '12 mois glissants') + '</div>' +
     (C.view === 'roll' ? '' : '<label class="checkbox"><input type="checkbox" ' + (C.y2 ? 'checked' : '') + ' onchange="ST.cmp.y2=this.checked;renderAll()"> ajouter ' + (y - 2) + '</label>') + '</div></div>' +
-    '<div class="kpis" style="margin-bottom:14px">' + cards + '</div>' + chart +
+    '<div class="kpis cmp">' + cards + '</div>' + chart +
     '<p class="help muted mt-2">' + (isCur ? 'Repère : ' + ymLabel(anchorYm) + ' (mois en cours, partiel). ' : '') + (C.metric === 'diffuse' ? 'Les mois à venir affichent la diffusion déjà planifiée (colonnes estompées).' : 'Le CA signé est daté du jour de signature du contrat.') + '</p></div>';
 }
 
@@ -707,8 +750,8 @@ function renderClientModal(m) {
   const name = cs.slice().sort((a, b) => b.signedDate.localeCompare(a.signedDate))[0].client, S = clientStats(cs), info = db.clientInfo[m.key] || {};
   $('.modal-card-title', m.el).textContent = 'Client — ' + name;
   const cats = S.rows.map(r => r.y);
-  const chCA = barChart({ cats, series: [{ name: 'CA signé', color: CH.cur, vals: S.rows.map(r => round2(r.signe)) }, { name: 'CA diffusé', color: CH.prev, vals: S.rows.map(r => round2(r.diffuse)) }], fmtTick: kEur, fmtVal: eur, w: 520, h: 250, label: 'CA signé et diffusé par année', first: 'Année' });
-  const chSp = barChart({ cats, series: [{ name: 'Spots', color: CH.cur, vals: S.rows.map(r => Math.round(r.spots)) }], fmtTick: kInt, fmtVal: kInt, w: 520, h: 250, label: 'Nombre de spots par année', first: 'Année' });
+  const chCA = barChart({ cats, series: [{ name: 'CA signé', color: CH.cur, vals: S.rows.map(r => round2(r.signe)) }, { name: 'CA diffusé', color: CH.prev, vals: S.rows.map(r => round2(r.diffuse)) }], fmtTick: kEur, fmtVal: eur, w: chartW(body, true), h: 240, label: 'CA signé et diffusé par année', first: 'Année' });
+  const chSp = barChart({ cats, series: [{ name: 'Spots', color: CH.cur, vals: S.rows.map(r => Math.round(r.spots)) }], fmtTick: kInt, fmtVal: kInt, w: chartW(body, true), h: 240, label: 'Nombre de spots par année', first: 'Année' });
   const yrRows = S.rows.slice().reverse().map((r, i, arr) => {
     const prev = S.rows.find(x => +x.y === +r.y - 1), ev = prev ? pct(r.signe, prev.signe) : null;
     return '<tr><td><b>' + r.y + '</b></td><td class="num">' + r.n + '</td><td class="num">' + eur(r.signe) + '</td><td class="num">' + (ev === null ? '<span class="muted">—</span>' : '<span class="dl ' + (ev >= 0 ? 'up' : 'dn') + '">' + (ev >= 0 ? '▲' : '▼') + ' ' + fpct(ev) + '</span>') + '</td><td class="num">' + eur(r.diffuse) + '</td><td class="num">' + eur(r.billed) + '</td><td class="num">' + eur(r.paid) + '</td><td class="num">' + r.camps + '</td><td class="num"><b>' + kInt(r.spots) + '</b></td></tr>';
@@ -1397,6 +1440,8 @@ $('#userSel').addEventListener('change', e => { meId = e.target.value; try { loc
 $('#gearBtn').addEventListener('click', openSettings);
 function tick() { $('#clk').textContent = new Date().toLocaleTimeString('fr-FR', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
 tick(); setInterval(tick, 1000);
+let rsT, lastW = window.innerWidth, lastH = window.innerHeight;
+window.addEventListener('resize', () => { clearTimeout(rsT); rsT = setTimeout(() => { if (Math.abs(window.innerWidth - lastW) > 8 || Math.abs(window.innerHeight - lastH) > 8) { lastW = window.innerWidth; lastH = window.innerHeight; renderAll(); } }, 200); });
 renderAll();
 </script>
 </body>
