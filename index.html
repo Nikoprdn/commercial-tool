@@ -1035,13 +1035,21 @@ function qtyFromDates(unit, s, e) {
   return unit === 'jour' ? days : unit === 'semaine' ? Math.ceil(days / 7) : Math.round(days / 30.4 * 10) / 10;
 }
 const pricingText = p => { const t = tariffOf(p.tid); return (t ? t.name : 'tarif supprimé') + ' × ' + p.qty + (num(p.disc) ? ' − ' + p.disc + ' %' : ''); };
-function calcHtml() {
+const soleSpotTariffId = () => { const g = tariffs().filter(t => t.kind === 'spot'); return g.length === 1 ? g[0].id : ''; };
+/* Déclenche le calcul (et l'affichage) une première fois à l'ouverture d'un formulaire, pour un tarif déjà présélectionné */
+function initCalc(formEl) { if (formEl && $('.tcalc', formEl)) window.tarifCalc(formEl); }
+/* preselTid : tarif à présélectionner à l'ouverture du formulaire (ex. celui déjà utilisé en
+   édition, ou l'unique tarif « Prix par spot » dans un formulaire de campagne) — la saisie du
+   nombre de spots applique alors directement le tarif dégressif, sans avoir à choisir un tarif à
+   la main ni cliquer sur « Utiliser ce montant ». */
+function calcHtml(preselTid) {
   const ts = tariffs();
   if (!ts.length) return '<div class="notification is-light py-3 mb-3">Aucun tarif configuré : ajoutez-les dans <b>Paramètres → Tarifs</b> pour calculer les montants automatiquement.</div>';
+  const presel = preselTid || '';
   const tidSel = '<div class="field"><label class="label is-small">Tarif</label><div class="control"><div class="select is-fullwidth"><select name="tid" onchange="tarifCalc(this.form)"><option value="">— Choisir un tarif —</option>' +
-    tariffGroups().map(g => '<optgroup label="' + esc(g.label) + '">' + g.list.map(t => '<option value="' + t.id + '">' + esc(t.name) + ' · ' + eur(t.price) + (t.unit === 'forfait' ? '' : ' ' + unitLabel(t.unit)) + '</option>').join('') + '</optgroup>').join('') +
+    tariffGroups().map(g => '<optgroup label="' + esc(g.label) + '">' + g.list.map(t => '<option value="' + t.id + '"' + (t.id === presel ? ' selected' : '') + '>' + esc(t.name) + ' · ' + eur(t.price) + (t.unit === 'forfait' ? '' : ' ' + unitLabel(t.unit)) + '</option>').join('') + '</optgroup>').join('') +
     '</select></div></div></div>';
-  return '<div class="box tcalc" style="background:var(--hdr-bg)"><div class="box-h"><h2>Calcul automatique du montant</h2><span class="sub">Optionnel — le montant reste modifiable</span></div><div class="columns is-multiline">' +
+  return '<div class="box tcalc" style="background:var(--hdr-bg)"><div class="box-h"><h2>Calcul automatique du montant</h2><span class="sub">' + (presel ? 'Le nombre de spots applique le tarif automatiquement' : 'Optionnel — le montant reste modifiable') + '</span></div><div class="columns is-multiline">' +
     '<div class="column is-6">' + tidSel + '</div>' +
     '<div class="column is-3"><div class="field"><label class="label is-small">Quantité</label><input class="input" type="number" min="0" step="0.1" name="tqty" placeholder="auto" oninput="tarifCalc(this.form)"></div></div>' +
     '<div class="column is-3"><div class="field"><label class="label is-small">Remise (%)</label><input class="input" type="number" min="0" max="100" step="0.1" name="tdisc" placeholder="0" oninput="tarifCalc(this.form)"></div></div></div>' +
@@ -1060,12 +1068,19 @@ window.tarifCalc = function (f) {
   out.innerHTML = String(r.q).replace('.', ',') + ' × ' + eur(r.unitPrice) + ' = ' + eur(r.gross) + note + (r.tiered ? ' · tarif palier (' + r.d1 + ' % vs tarif de base ' + eur(t.price) + ')' : '') + (r.d2 ? ' · remise ' + r.d2 + ' %' : '') + ' → <b>' + eur(r.net) + ' HT</b>';
   f.dataset.tnet = r.net; f.dataset.tq = r.q; f.dataset.tunit = t.unit; btn.style.display = '';
 };
-window.tarifUse = function (f) {
+window.tarifUse = function (f, silent) {
   if (f.dataset.tnet === undefined) return;
   f.elements.amountHT.value = f.dataset.tnet;
   if (f.dataset.tunit === 'spot' && f.elements.spots) f.elements.spots.value = Math.round(+f.dataset.tq);
-  toast('Montant reporté : ' + eur(+f.dataset.tnet));
+  if (!silent) toast('Montant reporté : ' + eur(+f.dataset.tnet));
 };
+/* Le tarif et la quantité effectivement utilisés (même quand la quantité est déduite automatiquement
+   des spots/dates plutôt que saisie à la main) : à lire depuis le dataset du formulaire à l'enregistrement,
+   plutôt que depuis le champ « quantité » qui peut rester vide exprès (placeholder « auto »). */
+function formTariffPricing(formEl) {
+  if (!formEl || !formEl.elements.tid || !formEl.elements.tid.value || formEl.dataset.tnet === undefined) return null;
+  return { tid: formEl.elements.tid.value, qty: num(formEl.dataset.tq), disc: num(formEl.elements.tdisc ? formEl.elements.tdisc.value : 0) };
+}
 /* Paramètres */
 function tarifRow(t) {
   return '<tr><td><input class="input is-small" value="' + esc(t.name) + '" onchange="setTariff(\'' + t.id + '\',\'name\',this.value)"></td>' +
@@ -1091,8 +1106,15 @@ function setTariff(id, k, v) {
   audit('Modification', 'Tarif', id, t.name + ' · ' + eur(t.price) + ' ' + unitLabel(t.unit)); redraw();
 }
 function delTariff(id) { const t = tariffOf(id); if (!t || !isAdmin() || !confirm('Supprimer le tarif « ' + t.name + ' » ? Les montants déjà saisis ne sont pas modifiés.')) return; db.tariffs = tariffs().filter(x => x.id !== id); audit('Suppression', 'Tarif', id, t.name); redraw(); }
-/* Recalcul dès qu'un champ du formulaire change (dates, nombre de spots…) */
-['input', 'change'].forEach(ev => document.addEventListener(ev, e => { const f = e.target && e.target.form; if (f && $('.tcalc', f) && e.target.name !== 'amountHT') window.tarifCalc(f); }));
+/* Recalcul dès qu'un champ du formulaire change (dates, nombre de spots…).
+   Saisie du nombre de spots (ou choix du tarif, si les spots sont déjà remplis) avec un tarif
+   « par spot » sélectionné : le tarif dégressif s'applique directement au montant HT, sans passer
+   par le bouton « Utiliser ce montant ». */
+['input', 'change'].forEach(ev => document.addEventListener(ev, e => {
+  const f = e.target && e.target.form; if (!f || !$('.tcalc', f) || e.target.name === 'amountHT') return;
+  window.tarifCalc(f);
+  if ((e.target.name === 'spots' || e.target.name === 'tid') && f.dataset.tunit === 'spot' && f.dataset.tnet !== undefined) window.tarifUse(f, true);
+}));
 
 
 /* ==========================================================================
@@ -1131,6 +1153,8 @@ const gridSpots = (camp, ym) => gridManual(camp, ym) ? num(camp.grid[ym]) : estS
    même temps que la grille de diffusion ; le total des deux tranches
    redéfinit automatiquement le nombre de spots réels du mois (camp.grid[ym]). */
 const SEGMENTS = [{ key: 'floating', label: 'Floating', hint: '9h00-16h00' }, { key: 'semi', label: 'Semi floating', hint: '9h00-19h00' }];
+const regimeLabel = v => (SEGMENTS.find(s => s.key === v) || {}).label || '';
+const regimeTag = v => v ? '<span class="tag grey" title="Régime de diffusion · ' + (SEGMENTS.find(s => s.key === v) || {}).hint + '">' + regimeLabel(v) + '</span>' : '';
 const segSpots = (camp, ym, seg) => num((camp.gridSeg && camp.gridSeg[ym] && camp.gridSeg[ym][seg]) || 0);
 const segHasData = (camp, ym) => !!(camp.gridSeg && camp.gridSeg[ym] && SEGMENTS.some(s => camp.gridSeg[ym][s.key] !== undefined && camp.gridSeg[ym][s.key] !== null && camp.gridSeg[ym][s.key] !== ''));
 function setGridSeg(id, ym, seg, v) {
@@ -1191,10 +1215,15 @@ function gridForm(id) {
       return '<tr><td><b>' + ymLabel(ym) + '</b></td>' + segCells + '<td class="num">' + inp + '</td><td class="num">' + eur(amt[ym] || 0) + '</td><td>' + (hasSeg ? '<span class="tag o25">par tranche</span>' : manual ? '<span class="tag o25">saisi</span>' : '<span class="muted">estimation par jours</span>') + '</td></tr>';
     }).join('');
     const total = sum(months, ym => amt[ym] || 0), hasManual = (cp.grid && Object.keys(cp.grid).length) || (cp.gridSeg && Object.keys(cp.gridSeg).length);
-    $('.modal-card-body', h.el).innerHTML = '<p class="mb-3">' + esc(c.client) + ' · ' + esc(cp.label) + ' · ' + eur(cp.amountHT) + ' HT' + (cp.spots ? ' · ' + kInt(cp.spots) + ' spot(s) prévu(s) au total' : '') + '</p>' +
+    /* Spots restants : sur le total prévu de la campagne, ce qui n'a pas encore été saisi (réellement diffusé/confirmé) mois par mois */
+    const totalSpots = num(cp.spots) || 0;
+    const confirmedSpots = sum(months, ym => (gridManual(cp, ym) || segHasData(cp, ym)) ? gridSpots(cp, ym) : 0);
+    const restSpots = totalSpots - confirmedSpots;
+    const restLine = totalSpots ? '<p class="mb-3"><b style="font-size:16px">' + kInt(Math.max(Math.round(restSpots), 0)) + ' spot(s) restant(s)</b> à diffuser sur ' + kInt(totalSpots) + (confirmedSpots > 0.05 ? ' · ' + kInt(Math.round(confirmedSpots)) + ' déjà confirmé(s)' : ' · rien de confirmé pour l\'instant (estimation par jours)') + (restSpots < -0.05 ? ' <span class="tag ko">dépassement de ' + kInt(Math.round(-restSpots)) + ' spot(s)</span>' : '') + '</p>' : '';
+    $('.modal-card-body', h.el).innerHTML = '<p class="mb-1">' + esc(c.client) + ' · ' + esc(cp.label) + ' ' + regimeTag(cp.regime) + ' · ' + eur(cp.amountHT) + ' HT' + (cp.spots ? ' · ' + kInt(cp.spots) + ' spot(s) prévu(s) au total' : '') + '</p>' + restLine +
       (mgr ? '<p class="help mb-3">Indiquez, mois par mois, le nombre de spots réellement diffusés — par tranche horaire (Floating 9h00-16h00, Semi floating 9h00-19h00) si vous voulez le détail, ou en total directement sinon. Le montant HT du mois est recalculé au prorata. Un mois non saisi reste une estimation par jours, modifiable à tout moment.</p>' : '') +
       '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Mois</th>' + SEGMENTS.map(s => '<th class="num" title="' + s.hint + '">' + s.label + '<br><small class="muted">' + s.hint + '</small></th>').join('') + '<th class="num">Spots (total)</th><th class="num">Montant HT</th><th>Origine</th></tr></thead><tbody>' + rows + '</tbody>' +
-      '<tfoot><tr><td>Total</td><td></td><td></td><td></td><td class="num"><b>' + eur(total) + '</b></td><td></td></tr></tfoot></table></div>' +
+      '<tfoot><tr><td>Total</td><td></td><td></td><td class="num">' + (totalSpots ? kInt(Math.round(confirmedSpots)) + ' confirmé(s)<br><span class="muted">' + kInt(Math.max(Math.round(restSpots), 0)) + ' restant(s)</span>' : '') + '</td><td class="num"><b>' + eur(total) + '</b></td><td></td></tr></tfoot></table></div>' +
       (mgr && hasManual ? '<button type="button" class="button is-small mt-3" onclick="resetGrid(\'' + cp.id + '\')">Réinitialiser toute la grille (estimation par jours)</button>' : '');
   };
   window.drawGrid = draw; draw();
@@ -1282,13 +1311,13 @@ function contractForm(id) {
       fld('Lien du contrat (optionnel)', 'driveUrl', c ? c.driveUrl : '', { type: 'url', ph: 'https://drive.google.com/…' }),
       c && isAdmin() ? fld('N° ODP (modifiable par un administrateur)', 'odp', c.odp) :
         '<div class="field"><label class="label is-small">N° ODP</label><p class="help" id="odp-info">' + (c ? esc(c.odp) : '') + '</p></div>'
-    ) + calcHtml() + fld('Notes', 'notes', c ? c.notes : '', { type: 'textarea' }) + '</form>';
+    ) + calcHtml(c && c.pricing ? c.pricing.tid : '') + fld('Notes', 'notes', c ? c.notes : '', { type: 'textarea' }) + '</form>';
   const h = openModal({
     title: c ? 'Modifier le contrat' : 'Nouveau contrat', body, buttons: [
-      { label: 'Enregistrer', cls: 'is-primary', onClick: (el, close) => saveContract(c, fdata(el), close) },
+      { label: 'Enregistrer', cls: 'is-primary', onClick: (el, close) => saveContract(c, fdata(el), close, formTariffPricing($('form', el))) },
       { label: 'Annuler', onClick: (el, close) => close() }]
   });
-  contractFormSync($('form', h.el));
+  contractFormSync($('form', h.el)); initCalc($('form', h.el));
 }
 /* Affiche / masque les champs selon le type et le statut */
 window.contractFormSync = function (f) {
@@ -1301,7 +1330,7 @@ window.contractFormSync = function (f) {
   const oi = $('#odp-info', f);
   if (oi && !edit) { const y = today().slice(0, 4); oi.textContent = comm ? 'Référence COM-' + y + '-### (hors suite officielle des ODP)' : 'Attribué à l\'enregistrement : prochain n° ' + fmtOdp(y, (db.odp[y] || 0) + 1); }
 };
-function saveContract(c, f, close) {
+function saveContract(c, f, close, pricing) {
   const client = (f.client || '').trim(), type = f.type, comm = type === 'communication', amount = round2(num(f.amountHT));
   const status = c ? (c.status || 'signe') : (comm ? 'signe' : (f.status || 'proposition')), signed = status === 'signe';
   const okDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '');
@@ -1331,14 +1360,14 @@ function saveContract(c, f, close) {
       audit('Modification ODP', 'Contrat', c.id, c.odp + ' → ' + o); c.odp = o;
     }
     Object.assign(c, { client, sellerId: f.sellerId, signedDate: refDate, type, label: f.label.trim(), amountHT: amount, driveUrl: f.driveUrl || '', notes: f.notes || '' });
-    if (f.tid && num(f.tqty) > 0) c.pricing = { tid: f.tid, qty: num(f.tqty), disc: num(f.tdisc) };
+    if (pricing) c.pricing = pricing; else delete c.pricing;
     if (!comm) c.proposalDate = f.proposalDate || c.proposalDate || '';
     audit('Modification', 'Contrat', c.id, c.odp + ' · ' + client + ' · ' + eur(amount));
     close(); commit(); toast('Contrat modifié');
   } else {
     const odpDate = comm ? f.signedDate : (f.proposalDate || refDate);
     const n = { id: uid(), odp: assignOdp(odpDate, type), client, sellerId: f.sellerId, status, proposalDate: comm ? '' : odpDate, signedDate: refDate, type, label: f.label.trim(), amountHT: amount, driveUrl: f.driveUrl || '', filed: false, tasks: {}, notes: f.notes || '', createdAt: new Date().toISOString(), createdBy: me().name };
-    if (f.tid && num(f.tqty) > 0) n.pricing = { tid: f.tid, qty: num(f.tqty), disc: num(f.tdisc) };
+    if (pricing) n.pricing = pricing;
     db.contracts.push(n); audit('Création', 'Contrat', n.id, n.odp + ' · ' + client + ' · ' + eur(amount) + (status === 'proposition' ? ' (proposition)' : ''));
     close(); commit(); toast((status === 'proposition' ? 'Proposition créée' : 'Contrat créé') + ' : ' + n.odp); openContract(n.id);
     if (signed && !comm) dropboxDialog(n.id);
@@ -1393,14 +1422,16 @@ function toggleTask(id, key, v) {
 function campForm(cid, id) {
   const c = contractOf(cid), cp = id ? db.campaigns.find(x => x.id === id) : null;
   const left = round2(c.amountHT - sum(campsOf(c).filter(x => !cp || x.id !== cp.id), x => x.amountHT));
+  const presel = cp && cp.pricing ? cp.pricing.tid : soleSpotTariffId();
   const body = '<form onsubmit="return false">' + cols(
     fld('Campagne / libellé', 'label', cp ? cp.label : c.label, { req: true }),
     fld('Montant HT alloué (€)', 'amountHT', cp ? cp.amountHT : Math.max(left, 0), { req: true, type: 'number', step: '0.01', help: 'Reste à allouer sur le contrat : ' + eur(left) }),
-    fld('Nombre de spots (total prévu)', 'spots', cp && cp.spots ? cp.spots : '', { type: 'number', step: '1', help: 'Indicatif. La répartition réelle mois par mois se règle ensuite dans la grille de diffusion, depuis la fiche du contrat ou la page Campagnes.' }),
+    fld('Nombre de spots (total prévu)', 'spots', cp && cp.spots ? cp.spots : '', { type: 'number', step: '1', help: presel ? 'Le tarif dégressif s\'applique automatiquement au montant ci-dessus.' : 'Indicatif. La répartition réelle mois par mois se règle ensuite dans la grille de diffusion, depuis la fiche du contrat ou la page Campagnes.' }),
+    fld('Régime de diffusion', 'regime', cp ? (cp.regime || 'floating') : 'floating', { options: SEGMENTS.map(s => ({ v: s.key, l: s.label + ' (' + s.hint + ')' })), help: 'Utilisé pour la grille de diffusion et le calendrier.' }),
     fld('Début de diffusion', 'start', cp ? cp.start : '', { type: 'date', req: true }),
     fld('Fin de diffusion', 'end', cp ? cp.end : '', { type: 'date', req: true }),
-    fld('Statut antenne', 'antenne', cp ? cp.antenne : 'none', { options: isSigned(c) ? ANTENNE : ANTENNE.slice(0, 1), help: isSigned(c) ? '' : 'Disponible après signature du contrat.' })) + (isComm(c) ? '' : calcHtml()) + '</form>';
-  openModal({
+    fld('Statut antenne', 'antenne', cp ? cp.antenne : 'none', { options: isSigned(c) ? ANTENNE : ANTENNE.slice(0, 1), help: isSigned(c) ? '' : 'Disponible après signature du contrat.' })) + (isComm(c) ? '' : calcHtml(presel)) + '</form>';
+  const h = openModal({
     title: cp ? 'Modifier la campagne' : 'Nouvelle campagne', body, buttons: [
       {
         label: 'Enregistrer', cls: 'is-primary', onClick: (el, close) => {
@@ -1411,8 +1442,9 @@ function campForm(cid, id) {
           if (isComm(c) ? a < 0 : !(a > 0)) return errBox(isComm(c) ? 'Le montant ne peut pas être négatif.' : 'Le montant doit être supérieur à 0.');
           if (a > left + 0.01 && !confirm('Le total des campagnes dépassera le montant du contrat de ' + eur(a - left) + '. Continuer ?')) return;
           const tgt = cp || { id: uid(), contractId: cid, sentDate: '', confirmedDate: '' };
-          const prev = tgt.antenne;
-          Object.assign(tgt, { label: f.label.trim(), amountHT: a, spots: Math.max(0, Math.round(num(f.spots))), start: f.start, end: f.end, antenne: isSigned(c) ? f.antenne : 'none' });
+          const prev = tgt.antenne, pricing = formTariffPricing($('form', el));
+          Object.assign(tgt, { label: f.label.trim(), amountHT: a, spots: Math.max(0, Math.round(num(f.spots))), regime: f.regime || 'floating', start: f.start, end: f.end, antenne: isSigned(c) ? f.antenne : 'none' });
+          if (pricing) tgt.pricing = pricing; else delete tgt.pricing;
           if (tgt.antenne !== prev) stampAntenne(tgt);
           if (!cp) db.campaigns.push(tgt);
           audit(cp ? 'Modification' : 'Création', 'Campagne', tgt.id, c.odp + ' · ' + tgt.label + ' · ' + eur(a));
@@ -1421,6 +1453,7 @@ function campForm(cid, id) {
       },
       { label: 'Annuler', onClick: (el, close) => close() }]
   });
+  initCalc($('form', h.el));
 }
 function stampAntenne(cp) {
   if (cp.antenne === 'none') { cp.sentDate = ''; cp.confirmedDate = ''; }
@@ -1614,7 +1647,7 @@ function renderContractModal(m) {
     (s.manual && mgr && !isLost(c) ? '<label class="checkbox"><input type="checkbox" ' + (s.status === 'done' ? 'checked' : '') + ' onchange="toggleTask(\'' + c.id + '\',\'' + s.key + '\',this.checked)"> fait</label>' : '<span></span>') + '</div>').join('');
   const campSum = round2(sum(camps, x => x.amountHT)), campDiff = round2(campSum - c.amountHT);
   const invSum = round2(sum(invs, x => x.amountHT));
-  const campRows = camps.map(x => '<tr><td>' + esc(x.label) + '</td><td>' + fdate(x.start) + ' → ' + fdate(x.end) + '</td><td class="num">' + eur(x.amountHT) + '</td><td class="num">' + (x.spots ? kInt(x.spots) : '—') + '</td><td class="' + ANT_CLS[x.antenne] + '">' + (ANTENNE.find(a => a.v === x.antenne).l) + '</td>' +
+  const campRows = camps.map(x => '<tr><td>' + esc(x.label) + ' ' + regimeTag(x.regime) + '</td><td>' + fdate(x.start) + ' → ' + fdate(x.end) + '</td><td class="num">' + eur(x.amountHT) + '</td><td class="num">' + (x.spots ? kInt(x.spots) : '—') + '</td><td class="' + ANT_CLS[x.antenne] + '">' + (ANTENNE.find(a => a.v === x.antenne).l) + '</td>' +
     '<td class="num">' + (mgr ? '<button class="button is-small" onclick="gridForm(\'' + x.id + '\')">Grille</button> <button class="button is-small is-light-orange" onclick="campForm(\'' + c.id + '\',\'' + x.id + '\')">Modifier</button> <button class="button is-small" onclick="delCampaign(\'' + x.id + '\')">✕</button>' : '<button class="button is-small" onclick="gridForm(\'' + x.id + '\')">Grille</button>') + '</td></tr>').join('');
   const bkRows = bks.map(x => '<tr><td>' + esc(x.emission) + '</td><td>' + esc(x.slot) + '</td><td>' + fdate(x.start) + ' → ' + fdate(x.end) + '</td><td>' + (x.status === 'confirme' ? '<span class="tag ok">Confirmée</span>' : '<span class="tag o25">Réservée</span>') + '</td>' +
     '<td class="num">' + (mgr ? '<button class="button is-small is-light-orange" onclick="bookForm(\'' + c.id + '\',\'' + x.id + '\')">Modifier</button> <button class="button is-small" onclick="delBooking(\'' + x.id + '\')">✕</button>' : '') + '</td></tr>').join('');
@@ -1700,7 +1733,7 @@ function vCampaigns() {
     const manual = gridManual(x, ym);
     const spCell = mgr ? '<input class="input is-small" style="width:76px" type="number" min="0" step="1" value="' + (manual ? Math.round(sp) : '') + '" placeholder="' + Math.round(estSpotsForMonth(x, ym)) + '" title="Spots réellement diffusés ce mois-ci" onchange="setGridSpots(\'' + x.id + '\',\'' + ym + '\',this.value)">'
       : (sp ? (manual ? kInt(sp) : kInt(sp) + ' (est.)') : '—');
-    return '<tr><td><a onclick="openContract(\'' + c.id + '\')"><b>' + esc(c.odp) + '</b></a></td><td>' + esc(c.client) + ' ' + STATUS_TAG(c) + '</td><td>' + esc(x.label) + ' ' + (c.type === 'publicite' ? '' : typeTag(c)) + '</td><td>' + fdate(x.start) + ' → ' + fdate(x.end) + '</td><td class="num">' + (isComm(c) ? '<span class="muted">—</span>' : eur(x.amountHT)) + '</td><td class="num">' + (isComm(c) ? '<span class="muted">—</span>' : eur(part)) + '</td><td class="num">' + spCell + '</td><td>' + sel + '</td><td>' + chk + '</td><td class="muted">' + (x.confirmedDate ? 'conf. ' + fdate(x.confirmedDate) : x.sentDate ? 'env. ' + fdate(x.sentDate) : '') + '</td><td class="num"><button class="button is-small" onclick="gridForm(\'' + x.id + '\')" title="Grille de diffusion complète">Grille</button></td></tr>';
+    return '<tr><td><a onclick="openContract(\'' + c.id + '\')"><b>' + esc(c.odp) + '</b></a></td><td>' + esc(c.client) + ' ' + STATUS_TAG(c) + '</td><td>' + esc(x.label) + ' ' + (c.type === 'publicite' ? '' : typeTag(c)) + ' ' + regimeTag(x.regime) + '</td><td>' + fdate(x.start) + ' → ' + fdate(x.end) + '</td><td class="num">' + (isComm(c) ? '<span class="muted">—</span>' : eur(x.amountHT)) + '</td><td class="num">' + (isComm(c) ? '<span class="muted">—</span>' : eur(part)) + '</td><td class="num">' + spCell + '</td><td>' + sel + '</td><td>' + chk + '</td><td class="muted">' + (x.confirmedDate ? 'conf. ' + fdate(x.confirmedDate) : x.sentDate ? 'env. ' + fdate(x.sentDate) : '') + '</td><td class="num"><button class="button is-small" onclick="gridForm(\'' + x.id + '\')" title="Grille de diffusion complète">Grille</button></td></tr>';
   }).join('');
   const billed = list.filter(x => isCA(contractOf(x.contractId)));
   const bks = db.bookings.filter(b => ids.has(b.contractId) && b.start <= last && b.end >= first).sort((a, b) => a.emission.localeCompare(b.emission));
