@@ -249,9 +249,7 @@ body{color:var(--ink);min-height:100vh;font-family:'Inter',sans-serif;font-size:
   <section id="ca" class="page"></section>
   <section id="alertes" class="page"></section>
 </main>
-
-<script>
-'use strict';
+<script>'use strict';
 /* ==========================================================================
    1. OUTILS
    ========================================================================== */
@@ -323,8 +321,12 @@ const isAdmin = () => me().role === 'admin';
 const isMgr = () => me().role !== 'commercial';          // admin + gestion
 const seller = id => db.sellers.find(s => s.id === id);
 const sellerName = id => (seller(id) || { name: '—' }).name;
-const visContracts = () => me().role === 'commercial' ? db.contracts.filter(c => c.sellerId === me().sellerId) : db.contracts;
+/* Visibilité des données : tous les profils voient l'ensemble des contrats de la régie
+   (mêmes chiffres pour tout le monde). Seuls les droits d'action (création, édition,
+   suppression, paramètres — voir isMgr/isAdmin) restent différenciés par profil. */
+const visContracts = () => db.contracts;
 const visIds = () => new Set(visContracts().map(c => c.id));
+const myContracts = () => db.contracts.filter(c => c.sellerId === me().sellerId);
 const contractOf = id => db.contracts.find(c => c.id === id);
 const cfg = (k, d) => (db.settings && db.settings[k] !== undefined && db.settings[k] !== '') ? db.settings[k] : d;
 const antName = () => cfg('antenna', 'Eric');
@@ -798,7 +800,7 @@ function vClients() {
   const T = list.reduce((t, x) => ({ signe: t.signe + x.S.tot.signe, diffuse: t.diffuse + x.S.tot.diffuse, spots: t.spots + x.S.tot.spots, reste: t.reste + x.S.reste, rd: t.rd + x.S.rd }), { signe: 0, diffuse: 0, spots: 0, reste: 0, rd: 0 });
   return '<div class="box"><div class="box-h"><h2>Clients</h2><button class="button is-light-orange" onclick="exportClients()">Export CSV</button></div>' +
     '<div class="bar"><input class="input" style="max-width:260px" id="clq" placeholder="Rechercher un client…" value="' + esc(f.q) + '" oninput="ST.clf.q=this.value;renderAll()">' +
-    (me().role === 'commercial' ? '' : '<div class="select"><select id="clseller" onchange="setF(\'clf\',\'seller\',this.value)">' + opts([{ v: '', l: 'Tous les commerciaux' }].concat(db.sellers.map(s => ({ v: s.id, l: s.name }))), f.seller) + '</select></div>') +
+    '<div class="select"><select id="clseller" onchange="setF(\'clf\',\'seller\',this.value)">' + opts([{ v: '', l: 'Tous les commerciaux' }].concat(db.sellers.map(s => ({ v: s.id, l: s.name }))), f.seller) + '</select></div>' +
     '<span class="sub muted">' + list.length + ' client(s) · CA signé cumulé ' + eur(T.signe) + '</span></div>' +
     (list.length ? '<div class="tw"><table class="table is-fullwidth is-hoverable"><thead><tr><th>Client</th><th>Commercial(s)</th><th class="num">Contrats</th><th class="num">CA signé total</th><th class="num">CA signé ' + curY + '</th><th class="num">CA diffusé total</th><th class="num">Spots ' + curY + '</th><th class="num">Spots total</th><th class="num">Reste à diffuser</th><th class="num">Reste à encaisser</th><th>Dernier contrat</th></tr></thead><tbody>' + rows + '</tbody>' +
       '<tfoot><tr><td colspan="3">Total</td><td class="num">' + eur(T.signe) + '</td><td></td><td class="num">' + eur(T.diffuse) + '</td><td></td><td class="num">' + kInt(T.spots) + '</td><td class="num">' + eur(T.rd) + '</td><td class="num">' + eur(T.reste) + '</td><td></td></tr></tfoot></table></div>' : '<div class="empty">Aucun client. Les clients apparaissent dès qu\'un contrat est saisi.</div>') + '</div>';
@@ -1070,6 +1072,28 @@ function estSpotsForMonth(camp, ym) {
 }
 const gridManual = (camp, ym) => !!(camp.grid && camp.grid[ym] !== undefined && camp.grid[ym] !== null && camp.grid[ym] !== '');
 const gridSpots = (camp, ym) => gridManual(camp, ym) ? num(camp.grid[ym]) : estSpotsForMonth(camp, ym);
+
+/* ---------- Tranches horaires (saisies avec la grille de diffusion) ----------
+   Floating : 9h00-16h00 · Semi floating : 9h00-19h00. Saisi mois par mois en
+   même temps que la grille de diffusion ; le total des deux tranches
+   redéfinit automatiquement le nombre de spots réels du mois (camp.grid[ym]). */
+const SEGMENTS = [{ key: 'floating', label: 'Floating', hint: '9h00-16h00' }, { key: 'semi', label: 'Semi floating', hint: '9h00-19h00' }];
+const segSpots = (camp, ym, seg) => num((camp.gridSeg && camp.gridSeg[ym] && camp.gridSeg[ym][seg]) || 0);
+const segHasData = (camp, ym) => !!(camp.gridSeg && camp.gridSeg[ym] && SEGMENTS.some(s => camp.gridSeg[ym][s.key] !== undefined && camp.gridSeg[ym][s.key] !== null && camp.gridSeg[ym][s.key] !== ''));
+function setGridSeg(id, ym, seg, v) {
+  const cp = db.campaigns.find(x => x.id === id); if (!cp || !isMgr()) return;
+  cp.gridSeg = cp.gridSeg || {}; cp.gridSeg[ym] = cp.gridSeg[ym] || {};
+  let n = null;
+  if (v === '' || v === null) delete cp.gridSeg[ym][seg];
+  else { n = Math.max(0, Math.round(num(v))); if (!(n >= 0)) return; cp.gridSeg[ym][seg] = n; }
+  if (!Object.keys(cp.gridSeg[ym]).length) delete cp.gridSeg[ym];
+  cp.grid = cp.grid || {};
+  if (segHasData(cp, ym)) cp.grid[ym] = SEGMENTS.reduce((s, x) => s + segSpots(cp, ym, x.key), 0);
+  else delete cp.grid[ym];
+  const c = contractOf(cp.contractId);
+  audit('Grille de diffusion', 'Campagne', id, (c || {}).odp + ' · ' + cp.label + ' · ' + ym + ' · ' + (SEGMENTS.find(s => s.key === seg) || {}).label + ' : ' + (n === null ? 'effacé' : n + ' spot(s)'));
+  commit(); if (window.drawGrid) window.drawGrid();
+}
 /* Répartition du montant HT et des spots, mois par mois, au prorata de ce qui a été (ou est estimé) diffusé */
 function allocByMonth(camp, field = 'amountHT') {
   const months = monthsTouched(camp), out = {};
@@ -1096,7 +1120,7 @@ function setGridSpots(id, ym, v) {
 }
 function resetGrid(id) {
   const cp = db.campaigns.find(x => x.id === id); if (!cp || !isMgr() || !confirm('Réinitialiser la grille de diffusion de cette campagne ? Elle repassera en estimation par jours.')) return;
-  delete cp.grid; audit('Grille de diffusion', 'Campagne', id, 'réinitialisée'); commit(); if (window.drawGrid) window.drawGrid();
+  delete cp.grid; delete cp.gridSeg; audit('Grille de diffusion', 'Campagne', id, 'réinitialisée'); commit(); if (window.drawGrid) window.drawGrid();
 }
 function gridForm(id) {
   const cp = db.campaigns.find(x => x.id === id); if (!cp) return;
@@ -1105,16 +1129,19 @@ function gridForm(id) {
   const draw = () => {
     const months = monthsTouched(cp), amt = allocByMonth(cp);
     const rows = months.map(ym => {
-      const manual = gridManual(cp, ym), v = gridSpots(cp, ym), est = estSpotsForMonth(cp, ym);
-      const inp = mgr ? '<input class="input is-small" style="width:100px" type="number" min="0" step="1" value="' + (manual ? Math.round(v) : '') + '" placeholder="' + Math.round(est) + '" onchange="setGridSpots(\'' + cp.id + '\',\'' + ym + '\',this.value)">'
-        : (manual ? kInt(v) : kInt(Math.round(est)) + ' (estimé)');
-      return '<tr><td><b>' + ymLabel(ym) + '</b></td><td class="num">' + inp + '</td><td class="num">' + eur(amt[ym] || 0) + '</td><td>' + (manual ? '<span class="tag o25">saisi</span>' : '<span class="muted">estimation par jours</span>') + '</td></tr>';
+      const manual = gridManual(cp, ym), v = gridSpots(cp, ym), est = estSpotsForMonth(cp, ym), hasSeg = segHasData(cp, ym);
+      const segInp = seg => mgr ? '<input class="input is-small" style="width:64px" type="number" min="0" step="1" value="' + (segSpots(cp, ym, seg.key) || '') + '" placeholder="0" onchange="setGridSeg(\'' + cp.id + '\',\'' + ym + '\',\'' + seg.key + '\',this.value)">'
+        : (segSpots(cp, ym, seg.key) || '<span class="muted">—</span>');
+      const segCells = SEGMENTS.map(seg => '<td class="num" title="' + seg.label + ' · ' + seg.hint + '">' + segInp(seg) + '</td>').join('');
+      const inp = hasSeg ? '<b>' + kInt(Math.round(v)) + '</b>' : (mgr ? '<input class="input is-small" style="width:90px" type="number" min="0" step="1" value="' + (manual ? Math.round(v) : '') + '" placeholder="' + Math.round(est) + '" onchange="setGridSpots(\'' + cp.id + '\',\'' + ym + '\',this.value)">'
+        : (manual ? kInt(v) : kInt(Math.round(est)) + ' (estimé)'));
+      return '<tr><td><b>' + ymLabel(ym) + '</b></td>' + segCells + '<td class="num">' + inp + '</td><td class="num">' + eur(amt[ym] || 0) + '</td><td>' + (hasSeg ? '<span class="tag o25">par tranche</span>' : manual ? '<span class="tag o25">saisi</span>' : '<span class="muted">estimation par jours</span>') + '</td></tr>';
     }).join('');
-    const total = sum(months, ym => amt[ym] || 0), hasManual = cp.grid && Object.keys(cp.grid).length;
+    const total = sum(months, ym => amt[ym] || 0), hasManual = (cp.grid && Object.keys(cp.grid).length) || (cp.gridSeg && Object.keys(cp.gridSeg).length);
     $('.modal-card-body', h.el).innerHTML = '<p class="mb-3">' + esc(c.client) + ' · ' + esc(cp.label) + ' · ' + eur(cp.amountHT) + ' HT' + (cp.spots ? ' · ' + kInt(cp.spots) + ' spot(s) prévu(s) au total' : '') + '</p>' +
-      (mgr ? '<p class="help mb-3">Indiquez, mois par mois, le nombre de spots réellement diffusés. Le montant HT du mois est recalculé au prorata. Un mois non saisi reste une estimation par jours, modifiable à tout moment.</p>' : '') +
-      '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Mois</th><th class="num">Spots</th><th class="num">Montant HT</th><th>Origine</th></tr></thead><tbody>' + rows + '</tbody>' +
-      '<tfoot><tr><td>Total</td><td></td><td class="num"><b>' + eur(total) + '</b></td><td></td></tr></tfoot></table></div>' +
+      (mgr ? '<p class="help mb-3">Indiquez, mois par mois, le nombre de spots réellement diffusés — par tranche horaire (Floating 9h00-16h00, Semi floating 9h00-19h00) si vous voulez le détail, ou en total directement sinon. Le montant HT du mois est recalculé au prorata. Un mois non saisi reste une estimation par jours, modifiable à tout moment.</p>' : '') +
+      '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Mois</th>' + SEGMENTS.map(s => '<th class="num" title="' + s.hint + '">' + s.label + '<br><small class="muted">' + s.hint + '</small></th>').join('') + '<th class="num">Spots (total)</th><th class="num">Montant HT</th><th>Origine</th></tr></thead><tbody>' + rows + '</tbody>' +
+      '<tfoot><tr><td>Total</td><td></td><td></td><td></td><td class="num"><b>' + eur(total) + '</b></td><td></td></tr></tfoot></table></div>' +
       (mgr && hasManual ? '<button type="button" class="button is-small mt-3" onclick="resetGrid(\'' + cp.id + '\')">Réinitialiser toute la grille (estimation par jours)</button>' : '');
   };
   window.drawGrid = draw; draw();
@@ -1581,7 +1608,7 @@ function vHome() {
   const recent = [...vis].sort((a, b) => b.signedDate.localeCompare(a.signedDate) || b.odp.localeCompare(a.odp)).slice(0, 6);
   const todo = vis.filter(c => !isLost(c) && progressOf(c).pct < 100).length;
   return '<div class="box-h"><h2 style="font-family:\'Barlow Condensed\';font-size:30px;font-weight:800;text-transform:uppercase">Tableau de bord</h2><button class="button is-primary" onclick="contractForm()">+ Nouveau contrat</button></div>' +
-    '<h3 class="dash-sub">Tableau de bord - Commercial</h3><div class="kpis">' + kCom + '</div>' +
+    '<h3 class="dash-sub">Tableau de bord - Commercial <span class="tag o25" style="text-transform:none;font-weight:600;vertical-align:middle">Chiffre d\'affaire personnel</span></h3><div class="kpis">' + kCom + '</div>' +
     '<h3 class="dash-sub">Tableau de bord - Comptabilité</h3><div class="kpis">' + kAcc + '</div>' +
     (!db.contracts.length ? '<div class="box"><div class="empty">Aucun contrat pour l\'instant.<br><br><button class="button is-primary" onclick="contractForm()">Saisir le premier contrat</button> ' + (isAdmin() ? '<button class="button is-light-orange" onclick="loadDemo()">Charger des données de démonstration</button>' : '') + '</div></div>' :
       '<div class="grid2"><div class="box"><div class="box-h"><h2>À traiter</h2><a onclick="go(\'alertes\')">Tout voir (' + al.length + ')</a></div>' + (al.length ? al.slice(0, 7).map(alertHtml).join('') : '<div class="empty">Rien à signaler ✅</div>') + '</div>' +
@@ -1600,7 +1627,7 @@ function vContracts() {
   const billable = list.filter(c => !isComm(c) && !isLost(c));
   return '<div class="box"><div class="box-h"><h2>Contrats &amp; propositions</h2><button class="button is-primary" onclick="contractForm()">+ Nouveau contrat</button></div>' +
     '<div class="bar"><input class="input" style="max-width:260px" id="cfq" placeholder="Rechercher client, ODP, libellé…" value="' + esc(f.q) + '" oninput="ST.cf.q=this.value;renderAll()">' +
-    sel('cfyear', f.year, yearsOf().map(y => ({ v: y, l: y })), 'Toutes les années') + (me().role === 'commercial' ? '' : sel('cfseller', f.seller, db.sellers.map(s => ({ v: s.id, l: s.name })), 'Tous les commerciaux')) +
+    sel('cfyear', f.year, yearsOf().map(y => ({ v: y, l: y })), 'Toutes les années') + sel('cfseller', f.seller, db.sellers.map(s => ({ v: s.id, l: s.name })), 'Tous les commerciaux') +
     sel('cftype', f.type, [{ v: 'publicite', l: 'Publicité' }, { v: 'sponsoring', l: 'Sponsoring' }, { v: 'communication', l: 'Communication' }], 'Tous les types') +
     sel('cfstatus', f.status, [{ v: 'proposition', l: 'Propositions (non signées)' }, { v: 'signe', l: 'Signés' }, { v: 'complete', l: 'Signés · complets' }, { v: 'progress', l: 'Signés · à compléter' }, { v: 'perdu', l: 'Perdues' }], 'Tous les statuts') +
     '<span class="sub muted">' + list.length + ' ligne(s) · ' + eur(sum(billable, c => c.amountHT)) + ' HT (hors communication et perdues)</span></div>' +
@@ -1682,7 +1709,7 @@ function vEnc() {
   }).join('');
   return kp + '<div class="box"><div class="box-h"><h2>Encaissements</h2><div>' + (mgr ? '<button class="button is-primary" onclick="invForm()">+ Nouvel encaissement</button> ' : '') + '<button class="button is-light-orange" onclick="exportPay()">Export CSV</button></div></div>' +
     '<div class="bar"><input class="input" style="max-width:240px" id="efq" placeholder="Client, ODP, n° facture…" value="' + esc(f.q) + '" oninput="ST.ef.q=this.value;renderAll()">' + sel('efyear', f.year, yearsOf().map(y => ({ v: y, l: y })), 'Toutes les années') +
-    (me().role === 'commercial' ? '' : sel('efseller', f.seller, db.sellers.map(s => ({ v: s.id, l: s.name })), 'Tous les commerciaux')) + sel('efstatus', f.status, [{ v: 'planned', l: 'Planifiées' }, { v: 'due', l: 'À encaisser' }, { v: 'partial', l: 'Partielles' }, { v: 'late', l: 'En retard' }, { v: 'paid', l: 'Soldées' }], 'Tous les statuts') + '</div>' +
+    sel('efseller', f.seller, db.sellers.map(s => ({ v: s.id, l: s.name })), 'Tous les commerciaux') + sel('efstatus', f.status, [{ v: 'planned', l: 'Planifiées' }, { v: 'due', l: 'À encaisser' }, { v: 'partial', l: 'Partielles' }, { v: 'late', l: 'En retard' }, { v: 'paid', l: 'Soldées' }], 'Tous les statuts') + '</div>' +
     (list.length ? '<div class="tw"><table class="table is-fullwidth is-hoverable"><thead><tr><th>Client</th><th>Campagne</th><th>Facture N°</th><th>Date</th><th class="num">TTC</th><th class="num">Espèces</th><th class="num">Chq</th><th class="num">Virmt</th><th class="num">Prélvt</th><th class="num">Reste à encaisser</th><th>Statut</th><th class="num">Comm. acquise</th><th class="num">Comm. versée</th><th></th></tr></thead><tbody>' + rows + '</tbody>' +
       '<tfoot><tr><td colspan="4">Total</td><td class="num">' + eur(sum(list, invTTC)) + '</td>' + MODES.map(m => '<td class="num">' + eur(sum(list, i => invByMode(i, m.v))) + '</td>').join('') + '<td class="num">' + eur(sum(issued, invReste)) + '</td><td></td><td class="num">' + eur(sum(list, commAcquired)) + '</td><td class="num">' + eur(sum(list, commPaid)) + '</td><td></td></tr></tfoot></table></div>' : '<div class="empty">Aucun encaissement ne correspond.</div>') + '</div>' +
     '<div class="box"><div class="box-h"><h2>Suivi des commissions</h2><span class="sub">Commission acquise = taux × HT encaissé (au prorata des règlements reçus)</span></div>' +
@@ -1713,7 +1740,7 @@ function vUnpaid() {
   const oldest = all.length ? Math.max(...all.map(late)) : 0, byClient = {}; all.forEach(i => { const k = contractOf(i.contractId).client; byClient[k] = (byClient[k] || 0) + invReste(i); });
   const kp = '<div class="kpis">' + kpi('Total impayé (TTC)', eur(sum(all, invReste)), all.length + ' facture(s) échue(s)', all.length ? 'danger' : '') + kpi('À relancer', String(all.filter(relanceDue).length), 'aucune relance récente ou date atteinte') + kpi('Retard maximum', oldest + ' j', 'depuis l\'échéance') + kpi('Clients concernés', String(Object.keys(byClient).length), 'délai de paiement : ' + db.settings.payDelay + ' j') + '</div>';
   return kp + '<div class="box"><div class="box-h"><h2>Impayés</h2><span class="sub">Factures échues non soldées, avec l\'historique des relances</span></div>' +
-    '<div class="bar"><input class="input" style="max-width:240px" id="ufq" placeholder="Client, ODP, n° facture…" value="' + esc(f.q) + '" oninput="ST.uf.q=this.value;renderAll()">' + (me().role === 'commercial' ? '' : sel('ufseller', f.seller, db.sellers.map(s => ({ v: s.id, l: s.name })), 'Tous les commerciaux')) + '</div>' +
+    '<div class="bar"><input class="input" style="max-width:240px" id="ufq" placeholder="Client, ODP, n° facture…" value="' + esc(f.q) + '" oninput="ST.uf.q=this.value;renderAll()">' + sel('ufseller', f.seller, db.sellers.map(s => ({ v: s.id, l: s.name })), 'Tous les commerciaux') + '</div>' +
     (list.length ? '<div class="tw"><table class="table is-fullwidth is-hoverable"><thead><tr><th>Client</th><th>Facture N°</th><th>Date</th><th>Échéance</th><th class="num">Reste TTC</th><th class="num">Retard</th><th>Dernière relance</th><th>Prochaine</th><th class="num">Relances</th><th></th></tr></thead><tbody>' + rows + '</tbody>' +
       '<tfoot><tr><td colspan="4">Total</td><td class="num">' + eur(sum(list, invReste)) + '</td><td colspan="5"></td></tr></tfoot></table></div>' : '<div class="empty">Aucun impayé ✅</div>') + '</div>';
 }
@@ -1815,7 +1842,7 @@ function openSettings() {
       db.sellers.map(s => '<tr><td><input class="input is-small" value="' + esc(s.name) + '" onchange="setSeller(\'' + s.id + '\',\'name\',this.value)"></td><td><input class="input is-small" type="number" step="0.1" value="' + s.rate + '" onchange="setSeller(\'' + s.id + '\',\'rate\',this.value)"></td><td><label class="checkbox"><input type="checkbox" ' + (s.direct ? 'checked' : '') + ' onchange="setSeller(\'' + s.id + '\',\'direct\',this.checked)"> direct</label></td><td class="num"><button class="button is-small" onclick="delSeller(\'' + s.id + '\')">✕</button></td></tr>').join('') + '</tbody></table></div>' +
       '<div class="box"><div class="box-h"><h2>Utilisateurs</h2><button class="button is-small is-primary" id="addUser">+ Ajouter</button></div><table class="table is-fullwidth"><thead><tr><th>Nom</th><th>Rôle</th><th>Lié au commercial</th><th></th></tr></thead><tbody>' +
       db.users.map(u => '<tr><td><input class="input is-small" value="' + esc(u.name) + '" onchange="setUser(\'' + u.id + '\',\'name\',this.value)"></td><td><div class="select is-small"><select onchange="setUser(\'' + u.id + '\',\'role\',this.value)">' + opts(Object.keys(ROLES).map(k => ({ v: k, l: ROLES[k] })), u.role) + '</select></div></td><td><div class="select is-small"><select onchange="setUser(\'' + u.id + '\',\'sellerId\',this.value)">' + opts([{ v: '', l: '—' }].concat(db.sellers.map(s => ({ v: s.id, l: s.name }))), u.sellerId) + '</select></div></td><td class="num"><button class="button is-small" onclick="delUser(\'' + u.id + '\')">✕</button></td></tr>').join('') + '</tbody></table>' +
-      '<p class="help">Administrateur : tout. Comptabilité : tout sauf paramètres et suppressions. Commercial : uniquement ses contrats, campagnes et commissions (lecture).</p></div>' +
+      '<p class="help">Administrateur : tout. Comptabilité : tout sauf paramètres et suppressions. Commercial : consultation de l\'ensemble des contrats, campagnes, clients et encaissements de la régie (mêmes chiffres que les autres profils), sans accès aux paramètres ni aux suppressions ; création limitée à ses propres contrats.</p></div>' +
       tarifSettingsBox() + dbxSettingsBox() + '<div class="box"><div class="box-h"><h2>Données</h2></div><div class="bar"><button class="button is-light-orange" onclick="exportJSON()">Exporter (JSON)</button><label class="button is-light-orange">Importer<input type="file" accept=".json" hidden onchange="importJSON(this.files[0])"></label><button class="button is-light-orange" onclick="loadDemo()">Charger des données de démo</button><button class="button is-danger is-light" onclick="resetAll()">Tout effacer</button></div>' +
       '<p class="help">Les données sont enregistrées dans ce navigateur. Faites des exports réguliers en attendant le branchement sur une base partagée.</p></div>' +
       '<div class="box"><div class="box-h"><h2>Journal d\'audit</h2><span class="sub">50 dernières actions</span></div><div class="tw" style="max-height:260px;overflow:auto"><table class="table is-fullwidth is-narrow"><tbody>' +
@@ -1895,6 +1922,4 @@ let rsT, lastW = window.innerWidth, lastH = window.innerHeight;
 window.addEventListener('resize', () => { clearTimeout(rsT); rsT = setTimeout(() => { if (Math.abs(window.innerWidth - lastW) > 8 || Math.abs(window.innerHeight - lastH) > 8) { lastW = window.innerWidth; lastH = window.innerHeight; renderAll(); } }, 200); });
 renderAll();
 
-</script>
-</body>
-</html>
+</script></body></html>
