@@ -298,14 +298,31 @@ const Store = {
   },
   /* Grille tarifaire réelle de la régie, préchargée dès l'installation (modifiable ensuite dans Paramètres → Tarifs) */
   defaultTariffs() {
+    const pack = (name, price) => ({ id: uid(), name, kind: 'pack', unit: 'forfait', price, tiers: '' });
     return [
       { id: uid(), name: 'Spot floating 20\'s', kind: 'spot', unit: 'spot', price: 33, tiers: '36:30; 71:27; 106:23' },
       { id: uid(), name: 'Création de spot 20 secondes', kind: 'autre', unit: 'forfait', price: 120, tiers: '' },
-      { id: uid(), name: 'Création de spot 30 secondes', kind: 'autre', unit: 'forfait', price: 150, tiers: '' }
+      { id: uid(), name: 'Création de spot 30 secondes', kind: 'autre', unit: 'forfait', price: 150, tiers: '' },
+      // Offres Clés en main 2026 — 20 secondes (tarif net HT)
+      pack('Clés en main 20s · Light 2 semaines — 50 spots (5/j, jours ouvrés)', 1665),
+      pack('Clés en main 20s · Regular 2 semaines — 70 spots (5/j, week-end inclus)', 2330),
+      pack('Clés en main 20s · Intense 2 semaines — 112 spots (8/j, week-end inclus)', 2900),
+      pack('Clés en main 20s · Light 1 mois — 106 spots (5/j, jours ouvrés)', 2745),
+      pack('Clés en main 20s · Regular 1 mois — 140 spots (5/j, week-end inclus)', 3625),
+      pack('Clés en main 20s · Intense 1 mois — 224 spots (8/j, week-end inclus)', 5800),
+      // Offres Clés en main 2026 — 30 secondes (tarif net HT)
+      pack('Clés en main 30s · Light 2 semaines — 50 spots (5/j, jours ouvrés)', 1915),
+      pack('Clés en main 30s · Regular 2 semaines — 70 spots (5/j, week-end inclus)', 2680),
+      pack('Clés en main 30s · Intense 2 semaines — 112 spots (8/j, week-end inclus)', 3335),
+      pack('Clés en main 30s · Light 1 mois — 107 spots (5/j, jours ouvrés)', 3185),
+      pack('Clés en main 30s · Regular 1 mois — 140 spots (5/j, week-end inclus)', 4170),
+      pack('Clés en main 30s · Intense 1 mois — 224 spots (8/j, week-end inclus)', 6670)
     ];
   },
   migrate(d) {   // anciennes données : un vendeur dont le nom contient « direct » est un client direct
-    d.tariffs = (d.tariffs && d.tariffs.length) ? d.tariffs : Store.defaultTariffs();
+    d.tariffs = d.tariffs || [];
+    if (!d.tariffs.length) d.tariffs = Store.defaultTariffs();
+    else { const names = new Set(d.tariffs.map(t => t.name)); Store.defaultTariffs().forEach(t => { if (!names.has(t.name)) d.tariffs.push(t); }); }
     d.sellers.forEach(s => { if (s.direct === undefined) s.direct = /direct/i.test(s.name); });
     return d;
   },
@@ -979,7 +996,8 @@ function dbxSettingsBox() {
    TARIFS : grille configurable (spots, sponsoring, autres) + calcul automatique du montant
    Les montants déjà saisis ne changent jamais quand un tarif est modifié.
    ========================================================================== */
-const T_KINDS = [{ v: 'spot', l: 'Spots' }, { v: 'sponsoring', l: 'Sponsoring' }, { v: 'autre', l: 'Autre' }];
+const T_KINDS = [{ v: 'spot', l: 'Prix par spot' }, { v: 'sponsoring', l: 'Prix sponsoring' }, { v: 'pack', l: 'Pack clés en main' }, { v: 'autre', l: 'Autre' }];
+const kindLabel = k => (T_KINDS.find(x => x.v === k) || {}).l || k;
 const T_UNITS = [{ v: 'spot', l: 'par spot' }, { v: 'jour', l: 'par jour' }, { v: 'semaine', l: 'par semaine' }, { v: 'mois', l: 'par mois' }, { v: 'forfait', l: 'forfait' }];
 const tariffs = () => db.tariffs || (db.tariffs = []);
 const tariffOf = id => tariffs().find(t => t.id === id);
@@ -1005,8 +1023,11 @@ const pricingText = p => { const t = tariffOf(p.tid); return (t ? t.name : 'tari
 function calcHtml() {
   const ts = tariffs();
   if (!ts.length) return '<div class="notification is-light py-3 mb-3">Aucun tarif configuré : ajoutez-les dans <b>Paramètres → Tarifs</b> pour calculer les montants automatiquement.</div>';
+  const tidSel = '<div class="field"><label class="label is-small">Tarif</label><div class="control"><div class="select is-fullwidth"><select name="tid" onchange="tarifCalc(this.form)"><option value="">— Choisir un tarif —</option>' +
+    T_KINDS.map(k => { const g = ts.filter(t => t.kind === k.v); return g.length ? '<optgroup label="' + esc(k.l) + '">' + g.map(t => '<option value="' + t.id + '">' + esc(t.name) + ' · ' + eur(t.price) + ' ' + unitLabel(t.unit) + '</option>').join('') + '</optgroup>' : ''; }).join('') +
+    '</select></div></div></div>';
   return '<div class="box tcalc" style="background:var(--hdr-bg)"><div class="box-h"><h2>Calcul automatique du montant</h2><span class="sub">Optionnel — le montant reste modifiable</span></div><div class="columns is-multiline">' +
-    '<div class="column is-6">' + fld('Tarif', 'tid', '', { options: [{ v: '', l: '— Choisir un tarif —' }].concat(ts.map(t => ({ v: t.id, l: t.name + ' · ' + eur(t.price) + ' ' + unitLabel(t.unit) }))), onchange: 'tarifCalc(this.form)' }) + '</div>' +
+    '<div class="column is-6">' + tidSel + '</div>' +
     '<div class="column is-3"><div class="field"><label class="label is-small">Quantité</label><input class="input" type="number" min="0" step="0.1" name="tqty" placeholder="auto" oninput="tarifCalc(this.form)"></div></div>' +
     '<div class="column is-3"><div class="field"><label class="label is-small">Remise (%)</label><input class="input" type="number" min="0" max="100" step="0.1" name="tdisc" placeholder="0" oninput="tarifCalc(this.form)"></div></div></div>' +
     '<div class="tres help" style="font-size:13px;color:var(--ink)"></div><button type="button" class="button is-small is-primary tuse mt-2" style="display:none" onclick="tarifUse(this.form)">Utiliser ce montant</button></div>';
@@ -1031,16 +1052,21 @@ window.tarifUse = function (f) {
   toast('Montant reporté : ' + eur(+f.dataset.tnet));
 };
 /* Paramètres */
-function tarifSettingsBox() {
-  const rows = tariffs().map(t => '<tr><td><input class="input is-small" value="' + esc(t.name) + '" onchange="setTariff(\'' + t.id + '\',\'name\',this.value)"></td>' +
+function tarifRow(t) {
+  return '<tr><td><input class="input is-small" value="' + esc(t.name) + '" onchange="setTariff(\'' + t.id + '\',\'name\',this.value)"></td>' +
     '<td><div class="select is-small"><select onchange="setTariff(\'' + t.id + '\',\'kind\',this.value)">' + opts(T_KINDS, t.kind) + '</select></div></td>' +
     '<td><div class="select is-small"><select onchange="setTariff(\'' + t.id + '\',\'unit\',this.value)">' + opts(T_UNITS, t.unit) + '</select></div></td>' +
     '<td><input class="input is-small" type="number" min="0" step="0.01" value="' + t.price + '" onchange="setTariff(\'' + t.id + '\',\'price\',this.value)"></td>' +
     '<td><input class="input is-small" placeholder="ex. 36:30; 71:27; 106:23" value="' + esc(t.tiers || '') + '" onchange="setTariff(\'' + t.id + '\',\'tiers\',this.value)"></td>' +
-    '<td class="num"><button class="button is-small" onclick="delTariff(\'' + t.id + '\')">✕</button></td></tr>').join('');
-  return '<div class="box"><div class="box-h"><h2>Tarifs</h2><button class="button is-small is-primary" onclick="addTariff()">+ Ajouter</button></div>' +
-    (rows ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Désignation</th><th>Type</th><th>Unité</th><th>Prix HT de base (€)</th><th>Paliers (quantité:prix € par unité)</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<div class="empty">Aucun tarif.</div>') +
-    '<p class="help">Ces tarifs alimentent le calcul automatique dans le formulaire de contrat et de campagne. Modifier un tarif ne change jamais les montants déjà enregistrés. Paliers : « 36:30; 71:27; 106:23 » = 30 €/unité dès 36 unités (appliqué à la totalité de la quantité), 27 €/unité dès 71, 23 €/unité dès 106 ; en dessous du premier palier, le prix HT de base s\'applique.</p></div>';
+    '<td class="num"><button class="button is-small" onclick="delTariff(\'' + t.id + '\')">✕</button></td></tr>';
+}
+function tarifSettingsBox() {
+  const all = tariffs();
+  const groups = T_KINDS.map(k => ({ k, list: all.filter(t => t.kind === k.v) })).filter(g => g.list.length);
+  const thead = '<thead><tr><th>Désignation</th><th>Type</th><th>Unité</th><th>Prix HT de base (€)</th><th>Paliers (quantité:prix € par unité)</th><th></th></tr></thead>';
+  const body = groups.length ? groups.map(g => '<h3 class="dash-sub" style="margin-top:14px">' + esc(g.k.l) + '</h3><div class="tw"><table class="table is-fullwidth">' + thead + '<tbody>' + g.list.map(tarifRow).join('') + '</tbody></table></div>').join('') : '<div class="empty">Aucun tarif.</div>';
+  return '<div class="box"><div class="box-h"><h2>Tarifs</h2><button class="button is-small is-primary" onclick="addTariff()">+ Ajouter</button></div>' + body +
+    '<p class="help mt-3">Ces tarifs alimentent le calcul automatique dans le formulaire de contrat et de campagne, regroupés ici par catégorie (Prix par spot, Prix sponsoring, Pack clés en main, Autre). Modifier un tarif ne change jamais les montants déjà enregistrés. Paliers : « 36:30; 71:27; 106:23 » = 30 €/unité dès 36 unités (appliqué à la totalité de la quantité), 27 €/unité dès 71, 23 €/unité dès 106 ; en dessous du premier palier, le prix HT de base s\'applique.</p></div>';
 }
 function addTariff() { if (!isAdmin()) return; tariffs().push({ id: uid(), name: 'Nouveau tarif', kind: 'spot', unit: 'spot', price: 0, tiers: '' }); audit('Création', 'Tarif', '', 'Nouveau tarif'); redraw(); }
 function setTariff(id, k, v) {
