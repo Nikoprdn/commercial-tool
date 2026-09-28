@@ -78,28 +78,21 @@ body{color:var(--ink);min-height:100vh;font-family:'Inter',sans-serif;font-size:
 .page{display:none;padding:28px 40px 60px;}
 .page.active{display:block;}
 .dash-sub{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--orange-dark);margin:0 0 8px;}
-.cal-head{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-soft);text-align:center;margin:10px 0 6px;}
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
-.cal-cell{position:relative;min-height:56px;border-radius:8px;border:1px solid var(--border);padding:6px 8px;display:flex;flex-direction:column;justify-content:space-between;background:#fff;}
+.cal-head{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-soft);text-align:center;margin:10px 0 8px;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;}
+.cal-cell{position:relative;min-height:96px;border-radius:8px;border:1px solid var(--border);padding:8px 10px;display:flex;flex-direction:column;background:#fff;}
 .cal-cell.cal-empty{border-color:transparent;background:transparent;}
 .cal-cell.clickable{cursor:pointer;}
 .cal-cell.clickable:hover{box-shadow:0 0 0 2px var(--orange);}
 .cal-cell.cal-today{border-color:var(--orange-dark);border-width:2px;}
+.cal-cell.has{background:var(--orange-25);}
 .cal-n{font-size:12px;color:var(--ink-soft);}
-.cal-sp{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:18px;align-self:flex-end;}
-.cal-cell.n1{background:var(--orange-25);}
-.cal-cell.n2{background:var(--orange-50);}
-.cal-cell.n3{background:var(--orange-75);}
-.cal-cell.n3 .cal-n,.cal-cell.n4 .cal-n{color:rgba(255,255,255,.85);}
-.cal-cell.n4{background:var(--orange);}
-.cal-legend{display:flex;align-items:center;gap:6px;margin-top:12px;font-size:11px;color:var(--ink-soft);}
-.cal-sw{width:16px;height:16px;border-radius:4px;display:inline-block;border:1px solid var(--border);}
-.cal-sw.n0{background:#fff;}
-.cal-sw.n1{background:var(--orange-25);}
-.cal-sw.n2{background:var(--orange-50);}
-.cal-sw.n3{background:var(--orange-75);}
-.cal-sw.n4{background:var(--orange);}
-@media(max-width:640px){.cal-sp{font-size:14px;}.cal-cell{min-height:44px;padding:4px 6px;}}
+.cal-sp-wrap{flex:1;display:flex;align-items:baseline;gap:5px;margin-top:4px;}
+.cal-sp{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:26px;line-height:1;color:var(--ink);}
+.cal-sp-lbl{font-size:10.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.02em;}
+.cal-clients{font-size:10.5px;color:var(--ink-soft);line-height:1.35;margin-top:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.cal-none{color:var(--ink-soft);font-size:12px;margin-top:8px;}
+@media(max-width:640px){.cal-sp{font-size:19px;}.cal-cell{min-height:64px;padding:6px 8px;}.cal-clients{display:none;}}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:22px;}
 .kpi{background:var(--card);border:1px solid var(--border);border-top:3px solid var(--orange);border-radius:8px;padding:14px 16px;}
 .kpi.danger{border-top-color:var(--danger);}
@@ -1637,14 +1630,18 @@ function vCampaigns() {
   visContracts().filter(isCA).forEach(c => { const v = resteDiffuser(c); if (v > 0.5) { const k = c.client; (rest[k] = rest[k] || { client: k, n: 0, v: 0, end: '', c }).n++; rest[k].v += v; const e = campsOf(c).map(x => x.end).sort().pop() || ''; if (e > rest[k].end) rest[k].end = e; } });
   const restRows = Object.values(rest).sort((a, b) => b.v - a.v).map(o => '<tr class="clickable" onclick="openClient(decodeURIComponent(\'' + ek(clientKey(o.client)) + '\'))"><td><b>' + esc(o.client) + '</b></td><td class="num">' + o.n + '</td><td class="num"><b>' + eur(round2(o.v)) + '</b></td><td>' + (o.end ? fdate(o.end) : '<span class="muted">non planifié</span>') + '</td></tr>').join('');
   const ongoingN = ongoingCamps().length, staleN = ongoingCamps().filter(stale).length;
-  const fill = monthFillData(ym), maxSp = Math.max(1, ...fill.map(f => f.spots));
-  const lvl = f => f.spots <= 0.05 ? 0 : f.spots / maxSp <= 0.25 ? 1 : f.spots / maxSp <= 0.5 ? 2 : f.spots / maxSp <= 0.75 ? 3 : 4;
+  const fill = monthFillData(ym);
   const firstW = (new Date(+ym.slice(0, 4), +ym.slice(5, 7) - 1, 1).getDay() + 6) % 7;
-  const calCells = fill.map(f => '<div class="cal-cell n' + lvl(f) + (f.date === t ? ' cal-today' : '') + (f.camps.length ? ' clickable' : '') + '"' + (f.camps.length ? ' onclick="dayDetail(\'' + f.date + '\')" title="' + f.camps.length + ' campagne(s) · ' + Math.round(f.spots) + ' spot(s) le ' + fdate(f.date) + '"' : '') + '><span class="cal-n">' + (+f.date.slice(8, 10)) + '</span>' + (f.spots > 0.05 ? '<span class="cal-sp">' + Math.round(f.spots) + '</span>' : '') + '</div>').join('');
-  const calHtml = '<div class="box"><div class="box-h"><h2>Occupation du mois</h2><span class="sub">Spots diffusés par jour, toutes campagnes confondues — un coup d\'œil sur le remplissage</span></div>' +
+  const calCells = fill.map(f => {
+    const n = Math.round(f.spots), clients = [...new Set(f.camps.map(x => contractOf(x.contractId).client))];
+    const clientsTxt = clients.length ? esc(clients.slice(0, 2).join(' · ')) + (clients.length > 2 ? ' +' + (clients.length - 2) : '') : '';
+    return '<div class="cal-cell' + (n > 0 ? ' has' : '') + (f.date === t ? ' cal-today' : '') + (f.camps.length ? ' clickable' : '') + '"' + (f.camps.length ? ' onclick="dayDetail(\'' + f.date + '\')" title="' + f.camps.length + ' campagne(s) le ' + fdate(f.date) + '"' : '') + '>' +
+      '<span class="cal-n">' + (+f.date.slice(8, 10)) + '</span>' +
+      (n > 0 ? '<div class="cal-sp-wrap"><span class="cal-sp">' + n + '</span><span class="cal-sp-lbl">spot' + (n > 1 ? 's' : '') + '</span></div><div class="cal-clients">' + clientsTxt + '</div>' : '<div class="cal-none">—</div>') + '</div>';
+  }).join('');
+  const calHtml = '<div class="box"><div class="box-h"><h2>Spots programmés par jour</h2><span class="sub">Cliquez un jour pour le détail des campagnes</span></div>' +
     '<div class="cal-head">' + ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(d => '<div>' + d + '</div>').join('') + '</div>' +
-    '<div class="cal-grid">' + '<div class="cal-cell cal-empty"></div>'.repeat(firstW) + calCells + '</div>' +
-    '<div class="cal-legend"><span>Moins rempli</span><i class="cal-sw n0"></i><i class="cal-sw n1"></i><i class="cal-sw n2"></i><i class="cal-sw n3"></i><i class="cal-sw n4"></i><span>Plus rempli</span><span class="sub" style="margin-left:auto">Cliquez un jour pour le détail</span></div></div>';
+    '<div class="cal-grid">' + '<div class="cal-cell cal-empty"></div>'.repeat(firstW) + calCells + '</div></div>';
   return calHtml +
     '<div class="box"><div class="box-h"><div class="mnav"><button class="button" onclick="ST.cm=addMonths(ST.cm,-1);renderAll()">◀</button><div class="ml">' + ymLabel(ym) + '</div><button class="button" onclick="ST.cm=addMonths(ST.cm,1);renderAll()">▶</button><button class="button is-light-orange" onclick="ST.cm=today().slice(0,7);renderAll()">Aujourd\'hui</button></div>' +
     '<span class="sub">Légende antenne : <span class="aq-none">non placée</span> · <span class="aq-sent">envoyée (rouge)</span> · <span class="aq-conf">confirmée (rouge gras)</span></span></div>' +
