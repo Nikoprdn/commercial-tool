@@ -78,6 +78,28 @@ body{color:var(--ink);min-height:100vh;font-family:'Inter',sans-serif;font-size:
 .page{display:none;padding:28px 40px 60px;}
 .page.active{display:block;}
 .dash-sub{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--orange-dark);margin:0 0 8px;}
+.cal-head{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-soft);text-align:center;margin:10px 0 6px;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
+.cal-cell{position:relative;min-height:56px;border-radius:8px;border:1px solid var(--border);padding:6px 8px;display:flex;flex-direction:column;justify-content:space-between;background:#fff;}
+.cal-cell.cal-empty{border-color:transparent;background:transparent;}
+.cal-cell.clickable{cursor:pointer;}
+.cal-cell.clickable:hover{box-shadow:0 0 0 2px var(--orange);}
+.cal-cell.cal-today{border-color:var(--orange-dark);border-width:2px;}
+.cal-n{font-size:12px;color:var(--ink-soft);}
+.cal-sp{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:18px;align-self:flex-end;}
+.cal-cell.n1{background:var(--orange-25);}
+.cal-cell.n2{background:var(--orange-50);}
+.cal-cell.n3{background:var(--orange-75);}
+.cal-cell.n3 .cal-n,.cal-cell.n4 .cal-n{color:rgba(255,255,255,.85);}
+.cal-cell.n4{background:var(--orange);}
+.cal-legend{display:flex;align-items:center;gap:6px;margin-top:12px;font-size:11px;color:var(--ink-soft);}
+.cal-sw{width:16px;height:16px;border-radius:4px;display:inline-block;border:1px solid var(--border);}
+.cal-sw.n0{background:#fff;}
+.cal-sw.n1{background:var(--orange-25);}
+.cal-sw.n2{background:var(--orange-50);}
+.cal-sw.n3{background:var(--orange-75);}
+.cal-sw.n4{background:var(--orange);}
+@media(max-width:640px){.cal-sp{font-size:14px;}.cal-cell{min-height:44px;padding:4px 6px;}}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:22px;}
 .kpi{background:var(--card);border:1px solid var(--border);border-top:3px solid var(--orange);border-radius:8px;padding:14px 16px;}
 .kpi.danger{border-top-color:var(--danger);}
@@ -1105,6 +1127,29 @@ function gridForm(id) {
   window.drawGrid = draw; draw();
 }
 
+/* ==========================================================================
+   CALENDRIER D'OCCUPATION : vue mensuelle en un coup d'œil du remplissage
+   antenne (nombre de spots diffusés par jour, toutes campagnes visibles).
+   ========================================================================== */
+function daysOfMonth(ym) {
+  const y = +ym.slice(0, 4), m = +ym.slice(5, 7), last = new Date(y, m, 0).getDate();
+  return Array.from({ length: last }, (_, i) => ym + '-' + p2(i + 1));
+}
+/* Nombre de spots d'une campagne pour un jour donné : montant mensuel de la grille (ou de l'estimation), réparti à parts égales sur les jours du mois où la campagne est active */
+function campSpotsOnDay(x, d) {
+  if (!x.start || !x.end || d < x.start || d > x.end) return 0;
+  const ym = ymOf(d), monthSpots = (allocByMonth(x, 'spots') || {})[ym] || 0, dim = daysInCampMonth(x, ym);
+  return dim ? monthSpots / dim : 0;
+}
+function monthFillData(ym) {
+  const ids = visIds();
+  const list = db.campaigns.filter(x => ids.has(x.contractId) && !isLost(contractOf(x.contractId)));
+  return daysOfMonth(ym).map(d => {
+    const camps = list.filter(x => x.start <= d && x.end >= d);
+    return { date: d, spots: sum(camps, x => campSpotsOnDay(x, d)), camps };
+  });
+}
+
 
 /* ==========================================================================
    5. ÉTAT & ROUTAGE
@@ -1325,6 +1370,19 @@ function checkAllOngoing() {
   if (!isMgr()) return; const l = ongoingCamps(); if (!l.length) return;
   l.forEach(cp => { cp.lastCheck = today(); });
   audit('Vérification antenne', 'Campagnes', '', l.length + ' campagne(s) vérifiée(s) auprès de ' + antName()); commit(); toast(l.length + ' campagne(s) marquée(s) vérifiée(s)');
+}
+/* Détail d'un jour du calendrier d'occupation : quelles campagnes y diffusent */
+function dayDetail(d) {
+  const day = monthFillData(ymOf(d)).find(f => f.date === d);
+  if (!day || !day.camps.length) return;
+  const rows = day.camps.map(x => {
+    const c = contractOf(x.contractId), sp = campSpotsOnDay(x, d);
+    return '<tr class="clickable" onclick="openContract(\'' + c.id + '\')"><td><b>' + esc(c.odp) + '</b></td><td>' + esc(c.client) + ' ' + STATUS_TAG(c) + '</td><td>' + esc(x.label) + '</td><td class="num">' + (sp > 0.05 ? sp.toFixed(1) : '—') + '</td><td><span class="' + ANT_CLS[x.antenne] + '">' + ANTENNE.find(a => a.v === x.antenne).l + '</span></td></tr>';
+  }).join('');
+  openModal({
+    title: 'Campagnes du ' + fdate(d), wide: true, buttons: [{ label: 'Fermer', onClick: (e, c) => c() }],
+    body: '<table class="table is-fullwidth is-hoverable"><thead><tr><th>ODP</th><th>Client</th><th>Campagne</th><th class="num">Spots (jour, est.)</th><th>Antenne</th></tr></thead><tbody>' + rows + '</tbody></table>'
+  });
 }
 function delCampaign(id) {
   if (!isMgr() || !confirm('Supprimer cette campagne ?')) return;
@@ -1579,7 +1637,16 @@ function vCampaigns() {
   visContracts().filter(isCA).forEach(c => { const v = resteDiffuser(c); if (v > 0.5) { const k = c.client; (rest[k] = rest[k] || { client: k, n: 0, v: 0, end: '', c }).n++; rest[k].v += v; const e = campsOf(c).map(x => x.end).sort().pop() || ''; if (e > rest[k].end) rest[k].end = e; } });
   const restRows = Object.values(rest).sort((a, b) => b.v - a.v).map(o => '<tr class="clickable" onclick="openClient(decodeURIComponent(\'' + ek(clientKey(o.client)) + '\'))"><td><b>' + esc(o.client) + '</b></td><td class="num">' + o.n + '</td><td class="num"><b>' + eur(round2(o.v)) + '</b></td><td>' + (o.end ? fdate(o.end) : '<span class="muted">non planifié</span>') + '</td></tr>').join('');
   const ongoingN = ongoingCamps().length, staleN = ongoingCamps().filter(stale).length;
-  return '<div class="box"><div class="box-h"><div class="mnav"><button class="button" onclick="ST.cm=addMonths(ST.cm,-1);renderAll()">◀</button><div class="ml">' + ymLabel(ym) + '</div><button class="button" onclick="ST.cm=addMonths(ST.cm,1);renderAll()">▶</button><button class="button is-light-orange" onclick="ST.cm=today().slice(0,7);renderAll()">Aujourd\'hui</button></div>' +
+  const fill = monthFillData(ym), maxSp = Math.max(1, ...fill.map(f => f.spots));
+  const lvl = f => f.spots <= 0.05 ? 0 : f.spots / maxSp <= 0.25 ? 1 : f.spots / maxSp <= 0.5 ? 2 : f.spots / maxSp <= 0.75 ? 3 : 4;
+  const firstW = (new Date(+ym.slice(0, 4), +ym.slice(5, 7) - 1, 1).getDay() + 6) % 7;
+  const calCells = fill.map(f => '<div class="cal-cell n' + lvl(f) + (f.date === t ? ' cal-today' : '') + (f.camps.length ? ' clickable' : '') + '"' + (f.camps.length ? ' onclick="dayDetail(\'' + f.date + '\')" title="' + f.camps.length + ' campagne(s) · ' + Math.round(f.spots) + ' spot(s) le ' + fdate(f.date) + '"' : '') + '><span class="cal-n">' + (+f.date.slice(8, 10)) + '</span>' + (f.spots > 0.05 ? '<span class="cal-sp">' + Math.round(f.spots) + '</span>' : '') + '</div>').join('');
+  const calHtml = '<div class="box"><div class="box-h"><h2>Occupation du mois</h2><span class="sub">Spots diffusés par jour, toutes campagnes confondues — un coup d\'œil sur le remplissage</span></div>' +
+    '<div class="cal-head">' + ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(d => '<div>' + d + '</div>').join('') + '</div>' +
+    '<div class="cal-grid">' + '<div class="cal-cell cal-empty"></div>'.repeat(firstW) + calCells + '</div>' +
+    '<div class="cal-legend"><span>Moins rempli</span><i class="cal-sw n0"></i><i class="cal-sw n1"></i><i class="cal-sw n2"></i><i class="cal-sw n3"></i><i class="cal-sw n4"></i><span>Plus rempli</span><span class="sub" style="margin-left:auto">Cliquez un jour pour le détail</span></div></div>';
+  return calHtml +
+    '<div class="box"><div class="box-h"><div class="mnav"><button class="button" onclick="ST.cm=addMonths(ST.cm,-1);renderAll()">◀</button><div class="ml">' + ymLabel(ym) + '</div><button class="button" onclick="ST.cm=addMonths(ST.cm,1);renderAll()">▶</button><button class="button is-light-orange" onclick="ST.cm=today().slice(0,7);renderAll()">Aujourd\'hui</button></div>' +
     '<span class="sub">Légende antenne : <span class="aq-none">non placée</span> · <span class="aq-sent">envoyée (rouge)</span> · <span class="aq-conf">confirmée (rouge gras)</span></span></div>' +
     (mgr && ongoingN ? '<div class="bar"><span class="sub">Vérification auprès de <b>' + esc(antName()) + '</b> : ' + ongoingN + ' campagne(s) en cours' + (staleN ? ' · <b style="color:var(--danger)">' + staleN + ' à vérifier</b>' : ' · à jour') + '</span> <button class="button is-small is-light-orange" onclick="checkAllOngoing()">✓ Tout marquer vérifié aujourd\'hui</button></div>' : '') +
     (list.length ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>ODP</th><th>Client</th><th>Campagne</th><th>Période</th><th class="num">HT total</th><th class="num">HT du mois</th><th class="num">Spots du mois</th><th>Statut antenne</th><th>Vérifié le</th><th></th><th></th></tr></thead><tbody>' + rows + '</tbody>' +
