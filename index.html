@@ -77,6 +77,7 @@ body{color:var(--ink);min-height:100vh;font-family:'Inter',sans-serif;font-size:
 
 .page{display:none;padding:28px 40px 60px;}
 .page.active{display:block;}
+.dash-sub{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--orange-dark);margin:0 0 8px;}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:22px;}
 .kpi{background:var(--card);border:1px solid var(--border);border-top:3px solid var(--orange);border-radius:8px;padding:14px 16px;}
 .kpi.danger{border-top-color:var(--danger);}
@@ -1514,21 +1515,23 @@ const yearsOf = () => { const s = new Set([today().slice(0, 4)]); db.contracts.f
 
 /* ---------- Accueil ---------- */
 function vHome() {
-  const t = today(), ym = t.slice(0, 7), y = t.slice(0, 4), mgr = isMgr();
+  const t = today(), ym = t.slice(0, 7), y = t.slice(0, 4);
   const vis = visContracts(), ids = visIds(), inv = db.invoices.filter(i => ids.has(i.contractId));
-  const ca = vis.filter(isCA), props = vis.filter(isProp);
+  const ca = vis.filter(isCA);
   const sm = sum(ca.filter(c => ymOf(c.signedDate) === ym), c => c.amountHT), sy = sum(ca.filter(c => c.signedDate.startsWith(y)), c => c.amountHT);
+  const dm = caDiffuseMonth(ym), dy = caDiffuseYear(+y).reduce((s, r) => s + r.total, 0);
   const reste = sum(inv.filter(i => i.invoiceNo), i => invReste(i)), late = inv.filter(invOverdue), toRelance = late.filter(relanceDue);
   const comm = sum(inv, commDue), al = computeAlerts(), ML = MONTHS[+ym.slice(5) - 1];
-  let k = kpi('CA signé · ' + ML, eur(sm), ca.filter(c => ymOf(c.signedDate) === ym).length + ' contrat(s)') + kpi('CA signé · ' + y, eur(sy), ca.filter(c => c.signedDate.startsWith(y)).length + ' contrat(s)');
-  k += kpi('Propositions en cours', eur(sum(props, c => c.amountHT)), props.length + ' ODP en attente de signature');
-  if (mgr) k += kpi('CA diffusé · ' + ML, eur(caDiffuseMonth(ym)), 'facturé + à rajouter') + kpi('CA diffusé · ' + y, eur(caDiffuseYear(+y).reduce((s, r) => s + r.total, 0)), "cumul de l'année") + kpi('Encaissé · ' + ML, eur(caEncaisseMonth(ym)), 'TTC, règlements du mois');
-  k += kpi('Reste à encaisser (TTC)', eur(reste), late.length + ' en retard · ' + toRelance.length + ' à relancer', late.length ? 'danger' : '') + kpi(mgr ? 'Commissions à verser' : 'Mes commissions à recevoir', eur(comm), 'HT, acquises non versées');
+  const kCom = kpi('CA signé · ' + ML, eur(sm), ca.filter(c => ymOf(c.signedDate) === ym).length + ' contrat(s)') + kpi('CA signé · ' + y, eur(sy), ca.filter(c => c.signedDate.startsWith(y)).length + ' contrat(s)') +
+    kpi('CA diffusé · ' + ML, eur(dm), 'facturé + à rajouter') + kpi('CA diffusé · ' + y, eur(dy), "cumul de l'année");
+  const kAcc = kpi('Encaissé · ' + ML, eur(caEncaisseMonth(ym)), 'TTC, règlements du mois') +
+    kpi('Reste à encaisser (TTC)', eur(reste), late.length + ' en retard · ' + toRelance.length + ' à relancer', late.length ? 'danger' : '') +
+    kpi('Commissions à verser', eur(comm), 'HT, acquises non versées');
   const recent = [...vis].sort((a, b) => b.signedDate.localeCompare(a.signedDate) || b.odp.localeCompare(a.odp)).slice(0, 6);
   const todo = vis.filter(c => !isLost(c) && progressOf(c).pct < 100).length;
-  const dashSuffix = me().role === 'commercial' ? ' - Commercial' : me().role === 'gestion' ? ' - Comptabilité' : '';
-  return '<div class="box-h"><h2 style="font-family:\'Barlow Condensed\';font-size:30px;font-weight:800;text-transform:uppercase">Tableau de bord' + dashSuffix + '</h2><button class="button is-primary" onclick="contractForm()">+ Nouveau contrat</button></div>' +
-    '<div class="kpis">' + k + '</div>' +
+  return '<div class="box-h"><h2 style="font-family:\'Barlow Condensed\';font-size:30px;font-weight:800;text-transform:uppercase">Tableau de bord</h2><button class="button is-primary" onclick="contractForm()">+ Nouveau contrat</button></div>' +
+    '<h3 class="dash-sub">Tableau de bord - Commercial</h3><div class="kpis">' + kCom + '</div>' +
+    '<h3 class="dash-sub">Tableau de bord - Comptabilité</h3><div class="kpis">' + kAcc + '</div>' +
     (!db.contracts.length ? '<div class="box"><div class="empty">Aucun contrat pour l\'instant.<br><br><button class="button is-primary" onclick="contractForm()">Saisir le premier contrat</button> ' + (isAdmin() ? '<button class="button is-light-orange" onclick="loadDemo()">Charger des données de démonstration</button>' : '') + '</div></div>' :
       '<div class="grid2"><div class="box"><div class="box-h"><h2>À traiter</h2><a onclick="go(\'alertes\')">Tout voir (' + al.length + ')</a></div>' + (al.length ? al.slice(0, 7).map(alertHtml).join('') : '<div class="empty">Rien à signaler ✅</div>') + '</div>' +
       '<div class="box"><div class="box-h"><h2>Derniers contrats</h2><span class="sub">' + todo + ' à compléter</span></div><div class="tw"><table class="table is-fullwidth is-hoverable"><tbody>' +
