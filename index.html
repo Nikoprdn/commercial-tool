@@ -292,12 +292,20 @@ const Store = {
         { id: 'u3', name: 'Commercial 1', role: 'commercial', sellerId: 's2' }
       ],
       sellers: [{ id: 's1', name: 'Radio Monaco (direct)', rate: 0, direct: true }, { id: 's2', name: 'Commercial 1', rate: 10, direct: false }],
-      contracts: [], campaigns: [], bookings: [], invoices: [], tariffs: [],
+      contracts: [], campaigns: [], bookings: [], invoices: [], tariffs: Store.defaultTariffs(),
       closures: {}, clientInfo: {}, odp: {}, settings: { tva: 20, payDelay: 30, remindDays: 7, checkDays: 7, antenna: 'Eric' }, log: []
     };
   },
+  /* Grille tarifaire réelle de la régie, préchargée dès l'installation (modifiable ensuite dans Paramètres → Tarifs) */
+  defaultTariffs() {
+    return [
+      { id: uid(), name: 'Spot floating 20\'s', kind: 'spot', unit: 'spot', price: 33, tiers: '36:30; 71:27; 106:23' },
+      { id: uid(), name: 'Création de spot 20 secondes', kind: 'autre', unit: 'forfait', price: 120, tiers: '' },
+      { id: uid(), name: 'Création de spot 30 secondes', kind: 'autre', unit: 'forfait', price: 150, tiers: '' }
+    ];
+  },
   migrate(d) {   // anciennes données : un vendeur dont le nom contient « direct » est un client direct
-    d.tariffs = d.tariffs || [];
+    d.tariffs = (d.tariffs && d.tariffs.length) ? d.tariffs : Store.defaultTariffs();
     d.sellers.forEach(s => { if (s.direct === undefined) s.direct = /direct/i.test(s.name); });
     return d;
   },
@@ -976,14 +984,18 @@ const T_UNITS = [{ v: 'spot', l: 'par spot' }, { v: 'jour', l: 'par jour' }, { v
 const tariffs = () => db.tariffs || (db.tariffs = []);
 const tariffOf = id => tariffs().find(t => t.id === id);
 const unitLabel = u => (T_UNITS.find(x => x.v === u) || {}).l || u;
-/* « 100:5; 300:10 » = remise de 5 % dès 100 unités, 10 % dès 300 */
+/* « 36:30; 71:27; 106:23 » = tarif au palier : dès 36 unités le prix devient 30 €/unité (flat,
+   appliqué à la totalité de la quantité, pas seulement à la tranche), dès 71 → 27 €/unité, etc.
+   En dessous du premier palier, c'est le tarif de base (t.price) qui s'applique. */
 function parseTiers(s) {
-  return String(s || '').split(/[;,]/).map(x => x.trim().split(':')).filter(a => a.length === 2).map(a => ({ min: num(a[0]), disc: num(a[1]) }))
-    .filter(t => t.min > 0 && t.disc > 0 && t.disc < 100).sort((a, b) => a.min - b.min);
+  return String(s || '').split(/[;,]/).map(x => x.trim().split(':')).filter(a => a.length === 2).map(a => ({ min: num(a[0]), price: num(a[1]) }))
+    .filter(t => t.min > 0 && t.price >= 0).sort((a, b) => a.min - b.min);
 }
 function tariffPrice(t, qty, disc) {
-  const q = num(qty), tier = parseTiers(t.tiers).filter(x => q >= x.min).pop(), d1 = tier ? tier.disc : 0, d2 = Math.min(100, Math.max(0, num(disc)));
-  return { q, gross: round2(t.price * q), d1, d2, net: round2(t.price * q * (1 - d1 / 100) * (1 - d2 / 100)) };
+  const q = num(qty), tier = parseTiers(t.tiers).filter(x => q >= x.min).pop(), unitPrice = tier ? tier.price : t.price;
+  const d1 = t.price > 0 ? round2((1 - unitPrice / t.price) * 100) : 0, d2 = Math.min(100, Math.max(0, num(disc)));
+  const gross = round2(unitPrice * q);
+  return { q, unitPrice, gross, d1, d2, net: round2(gross * (1 - d2 / 100)), tiered: !!tier };
 }
 function qtyFromDates(unit, s, e) {
   const days = daysDiff(s, e) + 1; if (!(days > 0)) return '';
@@ -1009,7 +1021,7 @@ window.tarifCalc = function (f) {
   if (q === '' && t.unit === 'forfait') q = 1;
   if (q === '' || !(num(q) > 0)) { out.textContent = 'Indiquez la quantité (' + unitLabel(t.unit).replace('par ', '') + 's).'; btn.style.display = 'none'; return; }
   const r = tariffPrice(t, q, el('tdisc').value);
-  out.innerHTML = String(r.q).replace('.', ',') + ' × ' + eur(t.price) + ' = ' + eur(r.gross) + note + (r.d1 ? ' · remise dégressive ' + r.d1 + ' %' : '') + (r.d2 ? ' · remise ' + r.d2 + ' %' : '') + ' → <b>' + eur(r.net) + ' HT</b>';
+  out.innerHTML = String(r.q).replace('.', ',') + ' × ' + eur(r.unitPrice) + ' = ' + eur(r.gross) + note + (r.tiered ? ' · tarif palier (' + r.d1 + ' % vs tarif de base ' + eur(t.price) + ')' : '') + (r.d2 ? ' · remise ' + r.d2 + ' %' : '') + ' → <b>' + eur(r.net) + ' HT</b>';
   f.dataset.tnet = r.net; f.dataset.tq = r.q; f.dataset.tunit = t.unit; btn.style.display = '';
 };
 window.tarifUse = function (f) {
@@ -1024,11 +1036,11 @@ function tarifSettingsBox() {
     '<td><div class="select is-small"><select onchange="setTariff(\'' + t.id + '\',\'kind\',this.value)">' + opts(T_KINDS, t.kind) + '</select></div></td>' +
     '<td><div class="select is-small"><select onchange="setTariff(\'' + t.id + '\',\'unit\',this.value)">' + opts(T_UNITS, t.unit) + '</select></div></td>' +
     '<td><input class="input is-small" type="number" min="0" step="0.01" value="' + t.price + '" onchange="setTariff(\'' + t.id + '\',\'price\',this.value)"></td>' +
-    '<td><input class="input is-small" placeholder="ex. 100:5; 300:10" value="' + esc(t.tiers || '') + '" onchange="setTariff(\'' + t.id + '\',\'tiers\',this.value)"></td>' +
+    '<td><input class="input is-small" placeholder="ex. 36:30; 71:27; 106:23" value="' + esc(t.tiers || '') + '" onchange="setTariff(\'' + t.id + '\',\'tiers\',this.value)"></td>' +
     '<td class="num"><button class="button is-small" onclick="delTariff(\'' + t.id + '\')">✕</button></td></tr>').join('');
   return '<div class="box"><div class="box-h"><h2>Tarifs</h2><button class="button is-small is-primary" onclick="addTariff()">+ Ajouter</button></div>' +
-    (rows ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Désignation</th><th>Type</th><th>Unité</th><th>Prix HT (€)</th><th>Dégressif (quantité:remise %)</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<div class="empty">Aucun tarif.</div>') +
-    '<p class="help">Ces tarifs alimentent le calcul automatique dans le formulaire de contrat et de campagne. Modifier un tarif ne change jamais les montants déjà enregistrés. Dégressif : « 100:5; 300:10 » = 5 % de remise dès 100 unités, 10 % dès 300.</p></div>';
+    (rows ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Désignation</th><th>Type</th><th>Unité</th><th>Prix HT de base (€)</th><th>Paliers (quantité:prix € par unité)</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<div class="empty">Aucun tarif.</div>') +
+    '<p class="help">Ces tarifs alimentent le calcul automatique dans le formulaire de contrat et de campagne. Modifier un tarif ne change jamais les montants déjà enregistrés. Paliers : « 36:30; 71:27; 106:23 » = 30 €/unité dès 36 unités (appliqué à la totalité de la quantité), 27 €/unité dès 71, 23 €/unité dès 106 ; en dessous du premier palier, le prix HT de base s\'applique.</p></div>';
 }
 function addTariff() { if (!isAdmin()) return; tariffs().push({ id: uid(), name: 'Nouveau tarif', kind: 'spot', unit: 'spot', price: 0, tiers: '' }); audit('Création', 'Tarif', '', 'Nouveau tarif'); redraw(); }
 function setTariff(id, k, v) {
@@ -1880,7 +1892,7 @@ function loadDemo() {
   const done = (...k) => Object.fromEntries(k.map(x => [x, { done: true, date: addDays(t, -10), by: 'Démo' }]));
   const cp = (c, s, e, a, ant, spots, chk) => { const x = { id: uid(), contractId: c.id, label: c.label, start: s, end: e, amountHT: a, spots: spots || 0, antenne: ant, sentDate: ant !== 'none' ? addDays(t, -5) : '', confirmedDate: ant === 'confirmed' ? addDays(t, -3) : '', lastCheck: chk || '' }; db.campaigns.push(x); return x; };
   const iv = (c, camp, no, ago, ht, rate, pays, rem) => db.invoices.push({ id: uid(), contractId: c.id, campaignId: camp ? camp.id : '', invoiceNo: no, invoiceDate: addDays(t, -ago), amountHT: ht, tva: 20, commRate: rate, payments: (pays || []).map(p => ({ id: uid(), date: addDays(t, -p[0]), mode: p[1], amount: p[2], ref: '' })), commPaid: [], reminders: (rem || []).map(x => ({ id: uid(), date: addDays(t, -x[0]), mode: x[1], note: x[2], next: x[3] ? addDays(t, -x[3]) : '', by: 'Démo' })), note: '' });
-  if (!tariffs().length) tariffs().push({ id: uid(), name: '[DÉMO] Spot 30 s', kind: 'spot', unit: 'spot', price: 45, tiers: '100:5; 300:10' }, { id: uid(), name: '[DÉMO] Sponsoring émission', kind: 'sponsoring', unit: 'mois', price: 1200, tiers: '6:5; 12:10' }, { id: uid(), name: '[DÉMO] Pack événement', kind: 'autre', unit: 'forfait', price: 2500, tiers: '' });
+  if (!tariffs().some(t => t.name.startsWith('[DÉMO]'))) tariffs().push({ id: uid(), name: '[DÉMO] Spot 30 s', kind: 'spot', unit: 'spot', price: 45, tiers: '100:40; 300:35' }, { id: uid(), name: '[DÉMO] Sponsoring émission', kind: 'sponsoring', unit: 'mois', price: 1200, tiers: '6:1140; 12:1080' }, { id: uid(), name: '[DÉMO] Pack événement', kind: 'autre', unit: 'forfait', price: 2500, tiers: '' });
   const y = +t.slice(0, 4);
   const a = mk('[DÉMO] Boulangerie Azur', 's2', 40, 'publicite', 'Campagne spots printemps', 6000, true, 'signe', done('clientdocs', 'spot'));
   const ca = cp(a, addDays(t, -30), addDays(t, 60), 6000, 'confirmed', 420, addDays(t, -2)); iv(a, ca, 'DEMO-001', 30, 6000, 10, [[10, 'VIRMT', 3600]]);
