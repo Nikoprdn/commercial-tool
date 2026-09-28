@@ -318,7 +318,7 @@ const Store = {
   defaultTariffs() {
     const pack = (sub, name, price) => ({ id: uid(), name, kind: 'pack', unit: 'forfait', price, tiers: '', sub });
     return [
-      { id: uid(), name: 'Spot floating 20\'s', kind: 'spot', unit: 'spot', price: 33, tiers: '36:30; 71:27; 106:23', sub: '' },
+      { id: uid(), name: 'Spot floating 20\'s', kind: 'spot', unit: 'spot', price: 37, tiers: '36:30; 71:27; 106:23', sub: '' },
       { id: uid(), name: 'Création de spot 20 secondes', kind: 'autre', unit: 'forfait', price: 120, tiers: '', sub: '' },
       { id: uid(), name: 'Création de spot 30 secondes', kind: 'autre', unit: 'forfait', price: 150, tiers: '', sub: '' },
       // Offres Clés en main 2026 — 20 secondes (tarif net HT)
@@ -342,6 +342,8 @@ const Store = {
     // ancien libellé des packs (avant regroupement 20s/30s) : on les retire pour les remplacer par la version courte ci-dessous, sans dupliquer
     d.tariffs = d.tariffs.filter(t => !(t.kind === 'pack' && /^Clés en main /.test(t.name)));
     d.tariffs.forEach(t => { if (t.sub === undefined) t.sub = ''; });
+    // correction tarifaire : le spot floating 20's de base était à 33€ par erreur, c'est 37€ (les paliers dégressifs 30/27/23€ restent inchangés)
+    d.tariffs.forEach(t => { if (t.kind === 'spot' && t.name === 'Spot floating 20\'s' && t.price === 33) t.price = 37; });
     if (!d.tariffs.length) d.tariffs = Store.defaultTariffs();
     else { const names = new Set(d.tariffs.map(t => t.name)); Store.defaultTariffs().forEach(t => { if (!names.has(t.name)) d.tariffs.push(t); }); }
     d.sellers.forEach(s => { if (s.direct === undefined) s.direct = /direct/i.test(s.name); });
@@ -1410,11 +1412,12 @@ function odpForm(id, prefill) {
       wrap('f-prop', fld("Date de création de l'ODP (proposition)", 'proposalDate', c ? (c.proposalDate || '') : (pf && pf.proposalDate) || today(), { type: 'date', max: today() })),
       wrap('f-signed', fld('Date de signature', 'signedDate', c ? c.signedDate : today(), { type: 'date', max: today(), help: 'Le CA signé est comptabilisé sur le mois de cette date.' })),
       wrap('f-amount', fld('Montant HT (€)', 'amountHT', c ? c.amountHT : (pf && pf.amountHT) || '', { req: true, type: 'number', step: '0.01' })),
+      fld('Nombre de spots (total prévu)', 'spots', c && c.spots ? c.spots : '', { type: 'number', step: '1', help: "Lié au montant HT via le tarif dégressif ci-dessous. Les campagnes de cet ODP se répartiront automatiquement sur ce total." }),
       fld("Lien de l'ODP (optionnel)", 'driveUrl', c ? c.driveUrl : '', { type: 'url', ph: 'https://drive.google.com/…' }),
       c ? fld('N° ODP', 'odp', c.odp) :
         (pf && pf.docOdp ? fld('N° ODP (relevé sur le document, modifiable)', 'odp', pf.docOdp) :
           '<div class="field"><label class="label is-small">N° ODP</label><p class="help" id="odp-info"></p></div>')
-    ) + calcHtml(c && c.pricing ? c.pricing.tid : '', ['autre']) + fld('Notes', 'notes', c ? c.notes : '', { type: 'textarea' }) + '</form>';
+    ) + calcHtml(c ? (c.pricing ? c.pricing.tid : '') : soleSpotTariffId(), ['autre']) + fld('Notes', 'notes', c ? c.notes : '', { type: 'textarea' }) + '</form>';
   const h = openModal({
     title: c ? "Modifier l'ODP" : 'Nouvel ODP', body, buttons: [
       { label: 'Enregistrer', cls: 'is-primary', onClick: (el, close) => saveOdp(c, fdata(el), close, formTariffPricing($('form', el))) },
@@ -1460,7 +1463,7 @@ function saveOdp(c, f, close, pricing) {
       if (db.odps.some(x => x.id !== c.id && x.odp === o)) return errBox('Ce n° d\'ODP est déjà utilisé.');
       audit('Modification ODP', 'ODP', c.id, c.odp + ' → ' + o); c.odp = o;
     }
-    Object.assign(c, { client, sellerId: f.sellerId, signedDate: refDate, type, amountHT: amount, driveUrl: f.driveUrl || '', notes: f.notes || '' });
+    Object.assign(c, { client, sellerId: f.sellerId, signedDate: refDate, type, amountHT: amount, spots: Math.max(0, Math.round(num(f.spots)) || 0), driveUrl: f.driveUrl || '', notes: f.notes || '' });
     if (pricing) c.pricing = pricing; else delete c.pricing;
     if (!comm) c.proposalDate = f.proposalDate || c.proposalDate || '';
     audit('Modification', 'ODP', c.id, c.odp + ' · ' + client + ' · ' + eur(amount));
@@ -1476,7 +1479,7 @@ function saveOdp(c, f, close, pricing) {
     } else {
       odpNum = assignOdp(odpDate, type);
     }
-    const n = { id: uid(), odp: odpNum, client, sellerId: f.sellerId, status, proposalDate: comm ? '' : odpDate, signedDate: refDate, type, amountHT: amount, driveUrl: f.driveUrl || '', filed: false, tasks: {}, notes: f.notes || '', createdAt: new Date().toISOString(), createdBy: me().name };
+    const n = { id: uid(), odp: odpNum, client, sellerId: f.sellerId, status, proposalDate: comm ? '' : odpDate, signedDate: refDate, type, amountHT: amount, spots: Math.max(0, Math.round(num(f.spots)) || 0), driveUrl: f.driveUrl || '', filed: false, tasks: {}, notes: f.notes || '', createdAt: new Date().toISOString(), createdBy: me().name };
     if (pricing) n.pricing = pricing;
     db.odps.push(n); audit('Création', 'ODP', n.id, n.odp + ' · ' + client + ' · ' + eur(amount) + (status === 'proposition' ? ' (proposition)' : ''));
     close(); commit(); toast((status === 'proposition' ? 'Proposition créée' : 'ODP créé') + ' : ' + n.odp); openOdp(n.id);
@@ -1532,11 +1535,13 @@ function toggleTask(id, key, v) {
 function campForm(cid, id) {
   const c = odpOf(cid), cp = id ? db.campaigns.find(x => x.id === id) : null;
   const left = round2(c.amountHT - sum(campsOf(c).filter(x => !cp || x.id !== cp.id), x => x.amountHT));
+  const hasSpotsBudget = num(c.spots) > 0;
+  const spotsLeft = round2(num(c.spots) - sum(campsOf(c).filter(x => !cp || x.id !== cp.id), x => num(x.spots)));
   const presel = cp && cp.pricing ? cp.pricing.tid : soleSpotTariffId();
   const body = '<form onsubmit="return false">' + cols(
     fld('Campagne / libellé', 'label', cp ? cp.label : '', { req: true }),
     fld('Montant HT alloué (€)', 'amountHT', cp ? cp.amountHT : Math.max(left, 0), { req: true, type: 'number', step: '0.01', help: "Reste à allouer sur l'ODP : " + eur(left) }),
-    fld('Nombre de spots (total prévu)', 'spots', cp && cp.spots ? cp.spots : '', { type: 'number', step: '1', help: presel ? 'Le tarif dégressif s\'applique automatiquement au montant ci-dessus.' : 'Indicatif. Réparti automatiquement au prorata des jours de diffusion.' }),
+    fld('Nombre de spots (total prévu)', 'spots', cp && cp.spots ? cp.spots : (hasSpotsBudget ? Math.max(Math.round(spotsLeft), 0) : ''), { type: 'number', step: '1', help: (hasSpotsBudget ? "Reste à répartir sur l'ODP : " + kInt(Math.max(spotsLeft, 0)) + ' spot(s). ' : '') + (presel ? 'Le tarif dégressif s\'applique automatiquement au montant ci-dessus.' : 'Indicatif. Réparti automatiquement au prorata des jours de diffusion.') }),
     fld('Régime de diffusion', 'regime', cp ? (cp.regime || 'floating') : 'floating', { options: SEGMENTS.map(s => ({ v: s.key, l: s.label + ' (' + s.hint + ')' })), help: 'Utilisé pour le calendrier de diffusion.' }),
     fld('Début de diffusion', 'start', cp ? cp.start : '', { type: 'date', req: true }),
     fld('Fin de diffusion', 'end', cp ? cp.end : '', { type: 'date', req: true }),
@@ -1774,6 +1779,7 @@ function renderOdpModal(m) {
   const stepHtml = st.map(s => '<div class="step"><span class="muted">' + s.k + '</span><span class="ic">' + ic[s.status] + '</span><span>' + esc(s.label) + (s.optional ? ' <small class="muted">(optionnel)</small>' : '') + (s.detail ? ' <small>· ' + esc(s.detail) + '</small>' : '') + '</span>' +
     (s.manual && mgr && !isLost(c) ? '<label class="checkbox"><input type="checkbox" ' + (s.status === 'done' ? 'checked' : '') + ' onchange="toggleTask(\'' + c.id + '\',\'' + s.key + '\',this.checked)"> fait</label>' : '<span></span>') + '</div>').join('');
   const campSum = round2(sum(camps, x => x.amountHT)), campDiff = round2(campSum - c.amountHT);
+  const campSpotsSum = round2(sum(camps, x => num(x.spots)));
   const invSum = round2(sum(invs, x => x.amountHT));
   const campRows = camps.map(x => '<tr><td>' + esc(x.label) + ' ' + regimeTag(x.regime) + '</td><td>' + fdate(x.start) + ' → ' + fdate(x.end) + '</td><td class="num">' + eur(x.amountHT) + '</td><td class="num">' + (x.spots ? kInt(x.spots) : '—') + '</td><td class="' + ANT_CLS[x.antenne] + '">' + (ANTENNE.find(a => a.v === x.antenne).l) + '</td>' +
     '<td class="num">' + (mgr ? '<button class="button is-small is-light-orange" onclick="campForm(\'' + c.id + '\',\'' + x.id + '\')">Modifier</button> <button class="button is-small" onclick="delCampaign(\'' + x.id + '\')">✕</button>' : '') + '</td></tr>').join('');
@@ -1786,9 +1792,10 @@ function renderOdpModal(m) {
     '<div class="box"><div class="box-h"><h2>Informations ' + STATUS_TAG(c) + '</h2><div>' + (mgr && isProp(c) ? '<button class="button is-small is-primary" onclick="signForm(\'' + c.id + '\')">✍ Marquer comme signé</button> <button class="button is-small" onclick="loseOdp(\'' + c.id + '\')">Perdue</button> ' : '') + (isLost(c) ? '<button class="button is-small is-light-orange" onclick="reopenProposal(\'' + c.id + '\')">Rouvrir</button> ' : '') + (mgr ? '<button class="button is-small is-light-orange" onclick="odpForm(\'' + c.id + '\')">Modifier</button> ' : '') + '<button class="button is-small is-danger is-light" onclick="delOdp(\'' + c.id + '\')">Supprimer</button>' + '</div></div>' +
     '<div class="columns is-multiline"><div class="column is-4"><span class="muted">Client</span><br><b>' + esc(c.client) + '</b></div><div class="column is-4"><span class="muted">Commercial</span><br><b>' + esc(sellerName(c.sellerId)) + '</b></div><div class="column is-4"><span class="muted">Type · origine</span><br>' + typeTag(c) + ' <b>' + (isDirect(c) ? 'Client direct' : 'Apporté par un commercial') + '</b></div>' +
     '<div class="column is-4"><span class="muted">' + (isProp(c) ? 'Proposé le' : 'Signé le') + '</span><br><b>' + fdate(c.signedDate) + '</b>' + (c.proposalDate && isSigned(c) && !isComm(c) ? ' <small class="muted">· ODP créé le ' + fdate(c.proposalDate) + '</small>' : '') + '</div><div class="column is-4"><span class="muted">Montant HT</span><br><b>' + (isComm(c) ? 'Non facturé' : eur(c.amountHT)) + '</b></div>' +
+    (num(c.spots) > 0 ? '<div class="column is-4"><span class="muted">Nombre de spots</span><br><b>' + kInt(c.spots) + '</b></div>' : '') +
     '<div class="column is-12"><span class="muted">Fichiers</span> ' + filesHtml(c) + ' <button class="button is-small is-light-orange" onclick="dropboxDialog(\'' + c.id + '\')">📎 Importer dans Dropbox</button>' + (c.driveUrl ? ' &nbsp;·&nbsp; <a href="' + esc(c.driveUrl) + '" target="_blank" rel="noopener">Lien Drive</a>' : '') + (c.pricing ? ' &nbsp;·&nbsp; <span class="muted">Tarif :</span> ' + esc(pricingText(c.pricing)) : '') + (c.notes ? ' &nbsp;·&nbsp; <span class="muted">Notes :</span> ' + esc(c.notes) : '') + '</div></div></div>' +
     '<div class="box"><div class="box-h"><h2>Suivi des 8 étapes</h2><span class="sub">' + p.done + ' / ' + p.total + ' étapes</span></div>' + stepHtml + '</div>' +
-    '<div class="box"><div class="box-h"><h2>Campagnes</h2><div><span class="sub">Total ' + eur(campSum) + ' / ' + eur(c.amountHT) + (Math.abs(campDiff) > 0.01 && !isComm(c) ? ' <b style="color:var(--danger)">(écart ' + eur(campDiff) + ')</b>' : '') + (isCA(c) ? ' · reste à diffuser ' + eur(resteDiffuser(c)) : '') + '</span> ' + (mgr && !isLost(c) ? '<button class="button is-small is-primary" onclick="campForm(\'' + c.id + '\')">+ Campagne</button>' : '') + '</div></div>' +
+    '<div class="box"><div class="box-h"><h2>Campagnes</h2><div><span class="sub">Total ' + eur(campSum) + ' / ' + eur(c.amountHT) + (Math.abs(campDiff) > 0.01 && !isComm(c) ? ' <b style="color:var(--danger)">(écart ' + eur(campDiff) + ')</b>' : '') + (num(c.spots) > 0 ? ' · Spots ' + kInt(campSpotsSum) + ' / ' + kInt(c.spots) : '') + (isCA(c) ? ' · reste à diffuser ' + eur(resteDiffuser(c)) : '') + '</span> ' + (mgr && !isLost(c) ? '<button class="button is-small is-primary" onclick="campForm(\'' + c.id + '\')">+ Campagne</button>' : '') + '</div></div>' +
     (camps.length ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Campagne</th><th>Période</th><th class="num">HT</th><th class="num">Spots</th><th>Antenne</th><th></th></tr></thead><tbody>' + campRows + '</tbody></table></div>' : '<div class="empty">Aucune campagne enregistrée.</div>') + '</div>' +
     (c.type === 'sponsoring' ? '<div class="box"><div class="box-h"><h2>Réservation des émissions sponsorisées</h2>' + (mgr ? '<button class="button is-small is-primary" onclick="bookForm(\'' + c.id + '\')">+ Réservation</button>' : '') + '</div>' +
       (bks.length ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Émission</th><th>Créneau</th><th>Période</th><th>Statut</th><th></th></tr></thead><tbody>' + bkRows + '</tbody></table></div>' : '<div class="empty">Aucune émission réservée.</div>') + '</div>' : '') +
@@ -2133,6 +2140,5 @@ tick(); setInterval(tick, 1000);
 let rsT, lastW = window.innerWidth, lastH = window.innerHeight;
 window.addEventListener('resize', () => { clearTimeout(rsT); rsT = setTimeout(() => { if (Math.abs(window.innerWidth - lastW) > 8 || Math.abs(window.innerHeight - lastH) > 8) { lastW = window.innerWidth; lastH = window.innerHeight; renderAll(); } }, 200); });
 renderAll();
-
 
 </script></body></html>
