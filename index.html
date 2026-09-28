@@ -1638,11 +1638,24 @@ function delBooking(id) { if (!isMgr() || !confirm('Supprimer cette réservation
 
 /* ---------- Factures / encaissements ---------- */
 const invLeft = (c, exceptId) => round2(c.amountHT - sum(invsOf(c).filter(i => i.id !== exceptId), i => i.amountHT));
+/* Reste à facturer sur une campagne précise (indépendant du reste global de l'ODP) */
+const campInvLeft = (cp, exceptId) => round2(cp.amountHT - sum(db.invoices.filter(i => i.campaignId === cp.id && i.id !== exceptId), i => i.amountHT));
+const invLeftHint = (c, cp, exceptId) => cp
+  ? 'Reste à facturer sur cette campagne : ' + eur(Math.max(campInvLeft(cp, exceptId), 0))
+  : "Reste à facturer sur l'ODP (toute la commande) : " + eur(Math.max(invLeft(c, exceptId), 0));
 window.refreshInvForm = function (sel) {
   const f = sel.form, c = odpOf(sel.value); if (!c) return;
   f.elements.campaignId.innerHTML = opts([{ v: '', l: '— Toute la commande —' }].concat(campsOf(c).map(x => ({ v: x.id, l: x.label }))), '');
   f.elements.commRate.value = (seller(c.sellerId) || {}).rate || 0;
   f.elements.amountHT.value = Math.max(invLeft(c), 0);
+  const hint = $('#inv-amt-hint', f); if (hint) hint.textContent = invLeftHint(c, null);
+};
+/* Bascule le montant suggéré entre le reste de l'ODP entier et le reste de la campagne choisie */
+window.refreshInvCampaign = function (sel) {
+  const f = sel.form, c = odpOf(f.elements.odpId.value); if (!c) return;
+  const cid = f.elements.campaignId.value, cp = cid ? campsOf(c).find(x => x.id === cid) : null;
+  f.elements.amountHT.value = cp ? Math.max(campInvLeft(cp), 0) : Math.max(invLeft(c), 0);
+  const hint = $('#inv-amt-hint', f); if (hint) hint.textContent = invLeftHint(c, cp);
 };
 function invForm(odpId, id) {
   if (!isMgr()) return;
@@ -1650,12 +1663,13 @@ function invForm(odpId, id) {
   const cid = inv ? inv.odpId : odpId;
   const odpOpts = db.odps.filter(isCA).map(c => ({ v: c.id, l: c.odp + ' · ' + c.client + ' · ' + eur(c.amountHT) }));
   const c0 = odpOf(cid) || db.odps.find(isCA); if (!c0) return errBox('Aucun ODP signé facturable.');
+  const cp0 = inv && inv.campaignId ? campsOf(c0).find(x => x.id === inv.campaignId) : null;
   const body = '<form onsubmit="return false">' + cols(
     fld('ODP', 'odpId', c0.id, { req: true, options: odpOpts, onchange: inv ? '' : 'refreshInvForm(this)' }),
-    fld('Campagne concernée', 'campaignId', inv ? inv.campaignId : '', { options: [{ v: '', l: '— Toute la commande —' }].concat(campsOf(c0).map(x => ({ v: x.id, l: x.label }))) }),
+    fld('Campagne concernée', 'campaignId', inv ? inv.campaignId : '', { options: [{ v: '', l: '— Toute la commande —' }].concat(campsOf(c0).map(x => ({ v: x.id, l: x.label }))), onchange: inv ? '' : 'refreshInvCampaign(this)' }),
     fld('N° de facture', 'invoiceNo', inv ? inv.invoiceNo : '', { help: 'Laisser vide tant que la facture n\'est pas émise (encaissement planifié).' }),
     fld('Date de facture (ou date prévue)', 'invoiceDate', inv ? inv.invoiceDate : today(), { type: 'date', req: true }),
-    fld('Montant HT (€)', 'amountHT', inv ? inv.amountHT : Math.max(invLeft(c0), 0), { req: true, type: 'number', step: '0.01', help: 'Montant de diffusion, commissionnable.' }),
+    fld('Montant HT (€)', 'amountHT', inv ? inv.amountHT : Math.max(invLeft(c0), 0), { req: true, type: 'number', step: '0.01', help: 'Montant de diffusion, commissionnable. <span id="inv-amt-hint">' + esc(invLeftHint(c0, cp0, inv && inv.id)) + '</span>' }),
     fld('TVA (%)', 'tva', inv ? invTva(inv) : db.settings.tva, { type: 'number', step: '0.1' }),
     fld('Taux de commission (%)', 'commRate', inv ? inv.commRate : (seller(c0.sellerId) || {}).rate || 0, { type: 'number', step: '0.1' }),
     fld('Note', 'note', inv ? inv.note : '')) + creationFeeHtml(inv) + '</form>';
@@ -1672,6 +1686,11 @@ function invForm(odpId, id) {
           if (inv && inv.invoiceNo && !no) return errBox('Un n° de facture déjà émis ne peut pas être retiré.');
           const left = invLeft(c, inv && inv.id);
           if (a > left + 0.01 && !confirm("Le total facturé dépassera l'ODP de " + eur(a - left) + '. Continuer ?')) return;
+          const cpSel = f.campaignId ? campsOf(c).find(x => x.id === f.campaignId) : null;
+          if (cpSel) {
+            const campLeft = campInvLeft(cpSel, inv && inv.id);
+            if (a > campLeft + 0.01 && !confirm('Le total facturé dépassera le montant alloué à la campagne « ' + cpSel.label + ' » de ' + eur(a - campLeft) + '. Continuer ?')) return;
+          }
           if (inv && invPaid(inv) > round2((a + crea) * (1 + num(f.tva) / 100)) + 0.01) return errBox('Le montant est inférieur aux règlements déjà reçus (' + eur(invPaid(inv)) + ').');
           const tgt = inv || { id: uid(), payments: [], commPaid: [] };
           Object.assign(tgt, { odpId: c.id, campaignId: f.campaignId || '', invoiceNo: no, invoiceDate: f.invoiceDate, amountHT: a, tva: num(f.tva), commRate: num(f.commRate), note: f.note || '', creaTid: f.creaTid || '', creaQty: f.creaQty ? num(f.creaQty) : '', creationHT: crea });
