@@ -420,8 +420,13 @@ function progressOf(c) {
 }
 
 /* ---- Facturation / encaissements ---- */
+/* i.amountHT = montant HT commissionnable (diffusion). i.creationHT = frais de création de
+   spot, HT, optionnel — facturé et encaissé avec le reste mais jamais commissionnable
+   (voir commAcquired ci-dessous, qui ne porte que sur i.amountHT). */
+const invCreationHT = i => num(i.creationHT) || 0;
+const invTotalHT = i => round2((num(i.amountHT) || 0) + invCreationHT(i));
 const invTva = i => (i.tva === undefined || i.tva === null || i.tva === '') ? db.settings.tva : +i.tva;
-const invTTC = i => round2(i.amountHT * (1 + invTva(i) / 100));
+const invTTC = i => round2(invTotalHT(i) * (1 + invTva(i) / 100));
 const invPaid = i => round2(sum(i.payments || [], p => p.amount));
 const invReste = i => round2(invTTC(i) - invPaid(i));
 const invByMode = (i, m) => round2(sum((i.payments || []).filter(p => p.mode === m), p => p.amount));
@@ -433,11 +438,12 @@ function invStatus(i) {
   if (invPaid(i) > 0) return { k: 'partial', l: 'Partielle', cls: 'o25' };
   return { k: 'due', l: 'À encaisser', cls: 'o25' };
 }
-/* Commission acquise = taux × HT encaissé (au prorata des règlements reçus) */
+/* Commission acquise = taux × HT diffusion encaissé (au prorata des règlements reçus).
+   Les frais de création de spot (i.creationHT) sont volontairement exclus de cette base. */
 function commAcquired(i) {
   if (!i.invoiceNo) return 0;
   const ttc = invTTC(i), ratio = ttc ? Math.min(1, invPaid(i) / ttc) : 0;
-  return round2(i.amountHT * ratio * (+i.commRate || 0) / 100);
+  return round2((num(i.amountHT) || 0) * ratio * (+i.commRate || 0) / 100);
 }
 const commPaid = i => round2(sum(i.commPaid || [], p => p.amount));
 const commDue = i => round2(commAcquired(i) - commPaid(i));
@@ -997,9 +1003,9 @@ const T_KINDS = [{ v: 'spot', l: 'Prix par spot' }, { v: 'sponsoring', l: 'Prix 
 const kindLabel = k => (T_KINDS.find(x => x.v === k) || {}).l || k;
 /* Regroupe les tarifs par type, puis par sous-groupe optionnel (t.sub, ex. « 20s »/« 30s »)
    quand au moins un tarif du type en a un — sert au menu du calcul automatique et à Paramètres. */
-function tariffGroups() {
-  const ts = tariffs(), out = [];
-  T_KINDS.forEach(k => {
+function tariffGroups(excludeKinds) {
+  const ts = tariffs().filter(t => !excludeKinds || !excludeKinds.includes(t.kind)), out = [];
+  T_KINDS.filter(k => !excludeKinds || !excludeKinds.includes(k.v)).forEach(k => {
     const g = ts.filter(t => t.kind === k.v); if (!g.length) return;
     const subs = [...new Set(g.map(t => t.sub || ''))];
     if (subs.length === 1 && !subs[0]) { out.push({ label: k.l, list: g }); return; }
@@ -1036,12 +1042,12 @@ function initCalc(formEl) { if (formEl && $('.tcalc', formEl)) window.tarifCalc(
    édition, ou l'unique tarif « Prix par spot » dans un formulaire de campagne) — la saisie du
    nombre de spots applique alors directement le tarif dégressif, sans avoir à choisir un tarif à
    la main ni cliquer sur « Utiliser ce montant ». */
-function calcHtml(preselTid) {
-  const ts = tariffs();
+function calcHtml(preselTid, excludeKinds) {
+  const ts = tariffs().filter(t => !excludeKinds || !excludeKinds.includes(t.kind));
   if (!ts.length) return '<div class="notification is-light py-3 mb-3">Aucun tarif configuré : ajoutez-les dans <b>Paramètres → Tarifs</b> pour calculer les montants automatiquement.</div>';
   const presel = preselTid || '';
   const tidSel = '<div class="field"><label class="label is-small">Tarif</label><div class="control"><div class="select is-fullwidth"><select name="tid" onchange="tarifCalc(this.form)"><option value="">— Choisir un tarif —</option>' +
-    tariffGroups().map(g => '<optgroup label="' + esc(g.label) + '">' + g.list.map(t => '<option value="' + t.id + '"' + (t.id === presel ? ' selected' : '') + '>' + esc(t.name) + ' · ' + eur(t.price) + (t.unit === 'forfait' ? '' : ' ' + unitLabel(t.unit)) + '</option>').join('') + '</optgroup>').join('') +
+    tariffGroups(excludeKinds).map(g => '<optgroup label="' + esc(g.label) + '">' + g.list.map(t => '<option value="' + t.id + '"' + (t.id === presel ? ' selected' : '') + '>' + esc(t.name) + ' · ' + eur(t.price) + (t.unit === 'forfait' ? '' : ' ' + unitLabel(t.unit)) + '</option>').join('') + '</optgroup>').join('') +
     '</select></div></div></div>';
   return '<div class="box tcalc" style="background:var(--hdr-bg)"><div class="box-h"><h2>Calcul automatique du montant</h2><span class="sub">' + (presel ? 'Le nombre de spots applique le tarif automatiquement' : 'Optionnel — le montant reste modifiable') + '</span></div><div class="columns is-multiline">' +
     '<div class="column is-6">' + tidSel + '</div>' +
@@ -1075,6 +1081,30 @@ function formTariffPricing(formEl) {
   if (!formEl || !formEl.elements.tid || !formEl.elements.tid.value || formEl.dataset.tnet === undefined) return null;
   return { tid: formEl.elements.tid.value, qty: num(formEl.dataset.tq), disc: num(formEl.elements.tdisc ? formEl.elements.tdisc.value : 0) };
 }
+
+/* ==========================================================================
+   FRAIS DE CRÉATION DE SPOT (facture) : tarifs de type « Autre », forfaitaires,
+   volontairement à l'écart du calcul automatique ci-dessus (qui alimente le
+   montant HT commissionnable) — ce forfait de création ne rentre jamais dans
+   le calcul de la commission du commercial.
+   ========================================================================== */
+function creationFeeHtml(inv) {
+  const ts = tariffs().filter(t => t.kind === 'autre');
+  const tOpts = [{ v: '', l: '— Aucun —' }].concat(ts.map(t => ({ v: t.id, l: t.name + ' · ' + eur(t.price) })));
+  const tid = (inv && inv.creaTid) || '', qty = (inv && inv.creaQty) || '', amt = (inv && inv.creationHT) || '';
+  return '<div class="box" style="background:var(--hdr-bg)"><div class="box-h"><h2>Frais de création de spot</h2><span class="sub">Optionnel · jamais inclus dans le calcul de la commission</span></div><div class="columns is-multiline">' +
+    '<div class="column is-5"><div class="field"><label class="label is-small">Tarif de création</label><div class="control"><div class="select is-fullwidth"><select name="creaTid" onchange="creaCalc(this.form)">' + opts(tOpts, tid) + '</select></div></div></div></div>' +
+    '<div class="column is-3"><div class="field"><label class="label is-small">Quantité</label><input class="input" type="number" min="0" step="1" name="creaQty" value="' + esc(qty) + '" placeholder="1" oninput="creaCalc(this.form)"></div></div>' +
+    '<div class="column is-4"><div class="field"><label class="label is-small">Frais de création (HT €)</label><input class="input" type="number" min="0" step="0.01" name="creationHT" value="' + esc(amt) + '"></div></div>' +
+    '</div></div>';
+}
+window.creaCalc = function (f) {
+  const tid = f.elements.creaTid.value; if (!tid) return;
+  const t = tariffOf(tid); if (!t) return;
+  const q = Math.max(0, num(f.elements.creaQty.value) || 1);
+  f.elements.creationHT.value = round2(t.price * q);
+};
+
 /* Paramètres */
 function tarifRow(t) {
   return '<tr><td><input class="input is-small" value="' + esc(t.name) + '" onchange="setTariff(\'' + t.id + '\',\'name\',this.value)"></td>' +
@@ -1090,7 +1120,7 @@ function tarifSettingsBox() {
   const thead = '<thead><tr><th>Désignation</th><th>Type</th><th>Sous-groupe (menu)</th><th>Unité</th><th>Prix HT de base (€)</th><th>Paliers (quantité:prix € par unité)</th><th></th></tr></thead>';
   const body = groups.length ? groups.map(g => '<h3 class="dash-sub" style="margin-top:14px">' + esc(g.label) + '</h3><div class="tw"><table class="table is-fullwidth">' + thead + '<tbody>' + g.list.map(tarifRow).join('') + '</tbody></table></div>').join('') : '<div class="empty">Aucun tarif.</div>';
   return '<div class="box"><div class="box-h"><h2>Tarifs</h2><button class="button is-small is-primary" onclick="addTariff()">+ Ajouter</button></div>' + body +
-    '<p class="help mt-3">Ces tarifs alimentent le calcul automatique dans le formulaire de contrat et de campagne, regroupés ici par catégorie (Prix par spot, Prix sponsoring, Pack clés en main, Autre) puis par sous-groupe si renseigné (ex. « 20s » / « 30s »). Modifier un tarif ne change jamais les montants déjà enregistrés. Paliers : « 36:30; 71:27; 106:23 » = 30 €/unité dès 36 unités (appliqué à la totalité de la quantité), 27 €/unité dès 71, 23 €/unité dès 106 ; en dessous du premier palier, le prix HT de base s\'applique.</p></div>';
+    '<p class="help mt-3">Les tarifs « Prix par spot », « Prix sponsoring » et « Pack clés en main » alimentent le calcul automatique du contrat et de la campagne, regroupés ici par catégorie puis par sous-groupe si renseigné (ex. « 20s » / « 30s »). Les tarifs « Autre » (ex. création de spot) sont réservés aux frais de création de spot saisis sur la facture : ils ne sont jamais commissionnables et n\'apparaissent pas dans le calcul du contrat/de la campagne. Modifier un tarif ne change jamais les montants déjà enregistrés. Paliers : « 36:30; 71:27; 106:23 » = 30 €/unité dès 36 unités (appliqué à la totalité de la quantité), 27 €/unité dès 71, 23 €/unité dès 106 ; en dessous du premier palier, le prix HT de base s\'applique.</p></div>';
 }
 function addTariff() { if (!isAdmin()) return; tariffs().push({ id: uid(), name: 'Nouveau tarif', kind: 'spot', unit: 'spot', price: 0, tiers: '', sub: '' }); audit('Création', 'Tarif', '', 'Nouveau tarif'); redraw(); }
 function setTariff(id, k, v) {
@@ -1234,7 +1264,7 @@ function contractForm(id) {
       fld('Lien du contrat (optionnel)', 'driveUrl', c ? c.driveUrl : '', { type: 'url', ph: 'https://drive.google.com/…' }),
       c ? fld('N° ODP', 'odp', c.odp) :
         '<div class="field"><label class="label is-small">N° ODP</label><p class="help" id="odp-info"></p></div>'
-    ) + calcHtml(c && c.pricing ? c.pricing.tid : '') + fld('Notes', 'notes', c ? c.notes : '', { type: 'textarea' }) + '</form>';
+    ) + calcHtml(c && c.pricing ? c.pricing.tid : '', ['autre']) + fld('Notes', 'notes', c ? c.notes : '', { type: 'textarea' }) + '</form>';
   const h = openModal({
     title: c ? 'Modifier le contrat' : 'Nouveau contrat', body, buttons: [
       { label: 'Enregistrer', cls: 'is-primary', onClick: (el, close) => saveContract(c, fdata(el), close, formTariffPricing($('form', el))) },
@@ -1352,7 +1382,7 @@ function campForm(cid, id) {
     fld('Régime de diffusion', 'regime', cp ? (cp.regime || 'floating') : 'floating', { options: SEGMENTS.map(s => ({ v: s.key, l: s.label + ' (' + s.hint + ')' })), help: 'Utilisé pour le calendrier de diffusion.' }),
     fld('Début de diffusion', 'start', cp ? cp.start : '', { type: 'date', req: true }),
     fld('Fin de diffusion', 'end', cp ? cp.end : '', { type: 'date', req: true }),
-    fld('Statut antenne', 'antenne', cp ? cp.antenne : 'none', { options: isSigned(c) ? ANTENNE : ANTENNE.slice(0, 1), help: isSigned(c) ? '' : 'Disponible après signature du contrat.' })) + (isComm(c) ? '' : calcHtml(presel)) + '</form>';
+    fld('Statut antenne', 'antenne', cp ? cp.antenne : 'none', { options: isSigned(c) ? ANTENNE : ANTENNE.slice(0, 1), help: isSigned(c) ? '' : 'Disponible après signature du contrat.' })) + (isComm(c) ? '' : calcHtml(presel, ['autre'])) + '</form>';
   const h = openModal({
     title: cp ? 'Modifier la campagne' : 'Nouvelle campagne', body, buttons: [
       {
@@ -1467,27 +1497,28 @@ function invForm(contractId, id) {
     fld('Campagne concernée', 'campaignId', inv ? inv.campaignId : '', { options: [{ v: '', l: '— Toute la commande —' }].concat(campsOf(c0).map(x => ({ v: x.id, l: x.label }))) }),
     fld('N° de facture', 'invoiceNo', inv ? inv.invoiceNo : '', { help: 'Laisser vide tant que la facture n\'est pas émise (encaissement planifié).' }),
     fld('Date de facture (ou date prévue)', 'invoiceDate', inv ? inv.invoiceDate : today(), { type: 'date', req: true }),
-    fld('Montant HT (€)', 'amountHT', inv ? inv.amountHT : Math.max(invLeft(c0), 0), { req: true, type: 'number', step: '0.01' }),
+    fld('Montant HT (€)', 'amountHT', inv ? inv.amountHT : Math.max(invLeft(c0), 0), { req: true, type: 'number', step: '0.01', help: 'Montant de diffusion, commissionnable.' }),
     fld('TVA (%)', 'tva', inv ? invTva(inv) : db.settings.tva, { type: 'number', step: '0.1' }),
     fld('Taux de commission (%)', 'commRate', inv ? inv.commRate : (seller(c0.sellerId) || {}).rate || 0, { type: 'number', step: '0.1' }),
-    fld('Note', 'note', inv ? inv.note : '')) + '</form>';
+    fld('Note', 'note', inv ? inv.note : '')) + creationFeeHtml(inv) + '</form>';
   openModal({
     title: inv ? 'Modifier la facture' : 'Nouvel encaissement', body, buttons: [
       {
         label: 'Enregistrer', cls: 'is-primary', onClick: (el, close) => {
-          const f = fdata(el), c = contractOf(f.contractId), a = round2(num(f.amountHT)), no = (f.invoiceNo || '').trim();
+          const f = fdata(el), c = contractOf(f.contractId), a = round2(num(f.amountHT)), crea = round2(num(f.creationHT) || 0), no = (f.invoiceNo || '').trim();
           if (!c) return errBox('Contrat invalide.');
           if (!f.invoiceDate) return errBox('Date obligatoire.');
           if (!(a > 0)) return errBox('Montant HT > 0 obligatoire.');
+          if (crea < 0) return errBox('Les frais de création ne peuvent pas être négatifs.');
           if (no && db.invoices.some(x => x.id !== (inv && inv.id) && x.invoiceNo === no)) return errBox('Ce n° de facture existe déjà.');
           if (inv && inv.invoiceNo && !no) return errBox('Un n° de facture déjà émis ne peut pas être retiré.');
           const left = invLeft(c, inv && inv.id);
           if (a > left + 0.01 && !confirm('Le total facturé dépassera le contrat de ' + eur(a - left) + '. Continuer ?')) return;
-          if (inv && invPaid(inv) > round2(a * (1 + num(f.tva) / 100)) + 0.01) return errBox('Le montant est inférieur aux règlements déjà reçus (' + eur(invPaid(inv)) + ').');
+          if (inv && invPaid(inv) > round2((a + crea) * (1 + num(f.tva) / 100)) + 0.01) return errBox('Le montant est inférieur aux règlements déjà reçus (' + eur(invPaid(inv)) + ').');
           const tgt = inv || { id: uid(), payments: [], commPaid: [] };
-          Object.assign(tgt, { contractId: c.id, campaignId: f.campaignId || '', invoiceNo: no, invoiceDate: f.invoiceDate, amountHT: a, tva: num(f.tva), commRate: num(f.commRate), note: f.note || '' });
+          Object.assign(tgt, { contractId: c.id, campaignId: f.campaignId || '', invoiceNo: no, invoiceDate: f.invoiceDate, amountHT: a, tva: num(f.tva), commRate: num(f.commRate), note: f.note || '', creaTid: f.creaTid || '', creaQty: f.creaQty ? num(f.creaQty) : '', creationHT: crea });
           if (!inv) db.invoices.push(tgt);
-          audit(inv ? 'Modification' : 'Création', 'Facture', tgt.id, c.odp + ' · ' + (no || 'planifiée') + ' · ' + eur(a)); close(); commit();
+          audit(inv ? 'Modification' : 'Création', 'Facture', tgt.id, c.odp + ' · ' + (no || 'planifiée') + ' · ' + eur(a) + (crea ? ' + ' + eur(crea) + ' création' : '')); close(); commit();
         }
       },
       { label: 'Annuler', onClick: (el, close) => close() }]
@@ -1571,7 +1602,7 @@ function renderContractModal(m) {
     '<td class="num">' + (mgr ? '<button class="button is-small is-light-orange" onclick="campForm(\'' + c.id + '\',\'' + x.id + '\')">Modifier</button> <button class="button is-small" onclick="delCampaign(\'' + x.id + '\')">✕</button>' : '') + '</td></tr>').join('');
   const bkRows = bks.map(x => '<tr><td>' + esc(x.emission) + '</td><td>' + esc(x.slot) + '</td><td>' + fdate(x.start) + ' → ' + fdate(x.end) + '</td><td>' + (x.status === 'confirme' ? '<span class="tag ok">Confirmée</span>' : '<span class="tag o25">Réservée</span>') + '</td>' +
     '<td class="num">' + (mgr ? '<button class="button is-small is-light-orange" onclick="bookForm(\'' + c.id + '\',\'' + x.id + '\')">Modifier</button> <button class="button is-small" onclick="delBooking(\'' + x.id + '\')">✕</button>' : '') + '</td></tr>').join('');
-  const invRows = invs.map(i => { const s = invStatus(i); return '<tr><td>' + (i.invoiceNo ? esc(i.invoiceNo) : '<span class="muted">planifiée</span>') + '</td><td>' + fdate(i.invoiceDate) + '</td><td class="num">' + eur(i.amountHT) + '</td><td class="num">' + eur(invTTC(i)) + '</td><td class="num">' + eur(invPaid(i)) + '</td><td class="num">' + eur(invReste(i)) + '</td><td><span class="tag ' + s.cls + '">' + s.l + '</span></td>' +
+  const invRows = invs.map(i => { const s = invStatus(i); return '<tr><td>' + (i.invoiceNo ? esc(i.invoiceNo) : '<span class="muted">planifiée</span>') + '</td><td>' + fdate(i.invoiceDate) + '</td><td class="num">' + eur(i.amountHT) + (invCreationHT(i) ? '<br><small class="muted">+ ' + eur(invCreationHT(i)) + ' création</small>' : '') + '</td><td class="num">' + eur(invTTC(i)) + '</td><td class="num">' + eur(invPaid(i)) + '</td><td class="num">' + eur(invReste(i)) + '</td><td><span class="tag ' + s.cls + '">' + s.l + '</span></td>' +
     '<td class="num">' + (mgr ? '<button class="button is-small is-light-orange" onclick="payForm(\'' + i.id + '\')">Règlement</button> <button class="button is-small" onclick="invForm(\'' + c.id + '\',\'' + i.id + '\')">Modifier</button>' : '') + '</td></tr>'; }).join('');
   const logs = db.log.filter(l => l.ref === c.id || (l.detail || '').includes(c.odp)).slice(0, 8).map(l => '<tr><td>' + new Date(l.ts).toLocaleString('fr-FR') + '</td><td>' + esc(l.user) + '</td><td>' + esc(l.action) + ' · ' + esc(l.entity) + '</td><td class="muted">' + esc(l.detail) + '</td></tr>').join('');
   $('.modal-card-body', m.el).innerHTML =
@@ -1699,14 +1730,14 @@ function vEnc() {
   }).sort((a, b) => b.invoiceDate.localeCompare(a.invoiceDate));
   const rows = list.map(i => {
     const c = contractOf(i.contractId), s = invStatus(i), cp = db.campaigns.find(x => x.id === i.campaignId);
-    return '<tr><td><a onclick="openContract(\'' + c.id + '\')">' + esc(c.client) + '</a></td><td>' + esc(cp ? cp.label : c.label) + '</td><td>' + (i.invoiceNo ? esc(i.invoiceNo) : '<span class="muted">—</span>') + '</td><td>' + fdate(i.invoiceDate) + '</td><td class="num">' + eur(invTTC(i)) + '</td>' +
+    return '<tr><td><a onclick="openContract(\'' + c.id + '\')">' + esc(c.client) + '</a></td><td>' + esc(cp ? cp.label : c.label) + (invCreationHT(i) ? '<br><small class="muted">+ création ' + eur(invCreationHT(i)) + '</small>' : '') + '</td><td>' + (i.invoiceNo ? esc(i.invoiceNo) : '<span class="muted">—</span>') + '</td><td>' + fdate(i.invoiceDate) + '</td><td class="num">' + eur(invTTC(i)) + '</td>' +
       MODES.map(m => '<td class="num">' + (invByMode(i, m.v) ? eur(invByMode(i, m.v)) : '') + '</td>').join('') + '<td class="num"><b>' + eur(invReste(i)) + '</b></td><td><span class="tag ' + s.cls + '">' + s.l + '</span></td>' +
       '<td class="num">' + eur(commAcquired(i)) + '</td><td class="num">' + eur(commPaid(i)) + '</td>' +
       '<td class="num">' + (mgr ? '<button class="button is-small is-light-orange" onclick="payForm(\'' + i.id + '\')" title="Enregistrer un règlement">Règl.</button> <button class="button is-small" onclick="commForm(\'' + i.id + '\')" title="Verser la commission">Comm.</button> <button class="button is-small" onclick="invForm(\'\',\'' + i.id + '\')">✎</button> <button class="button is-small" onclick="delInvoice(\'' + i.id + '\')">✕</button>' : '') + '</td></tr>';
   }).join('');
   const issued = list.filter(i => i.invoiceNo);
   const sel = (id, val, arr, all) => '<div class="select"><select id="' + id + '" onchange="setF(\'ef\',\'' + id.slice(2) + '\',this.value)">' + opts([{ v: '', l: all }].concat(arr), val) + '</select></div>';
-  const kp = '<div class="kpis">' + kpi('Facturé HT', eur(sum(issued, i => i.amountHT)), issued.length + ' facture(s) émise(s)') + kpi('Encaissé TTC', eur(sum(list, invPaid)), '') + kpi('Reste à encaisser', eur(sum(issued, invReste)), list.filter(invOverdue).length + ' en retard', list.some(invOverdue) ? 'danger' : '') + kpi('Commission acquise', eur(sum(list, commAcquired)), 'HT · versée ' + eur(sum(list, commPaid))) + '</div>';
+  const kp = '<div class="kpis">' + kpi('Facturé HT', eur(sum(issued, invTotalHT)), issued.length + ' facture(s) émise(s)' + (sum(issued, invCreationHT) > 0.005 ? ' · dont ' + eur(sum(issued, invCreationHT)) + ' création' : '')) + kpi('Encaissé TTC', eur(sum(list, invPaid)), '') + kpi('Reste à encaisser', eur(sum(issued, invReste)), list.filter(invOverdue).length + ' en retard', list.some(invOverdue) ? 'danger' : '') + kpi('Commission acquise', eur(sum(list, commAcquired)), 'HT diffusion uniquement · versée ' + eur(sum(list, commPaid))) + '</div>';
   const bySeller = db.sellers.filter(s => list.some(i => contractOf(i.contractId).sellerId === s.id)).map(s => {
     const l = list.filter(i => contractOf(i.contractId).sellerId === s.id);
     return '<tr><td><b>' + esc(s.name) + '</b></td><td class="num">' + eur(sum(l.filter(i => i.invoiceNo), i => i.amountHT)) + '</td><td class="num">' + eur(sum(l, commAcquired)) + '</td><td class="num">' + eur(sum(l, commPaid)) + '</td><td class="num"><b>' + eur(sum(l, commDue)) + '</b></td></tr>';
@@ -1720,8 +1751,8 @@ function vEnc() {
     (bySeller ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Commercial / agence</th><th class="num">Facturé HT</th><th class="num">Acquise HT</th><th class="num">Versée HT</th><th class="num">À verser HT</th></tr></thead><tbody>' + bySeller + '</tbody></table></div>' : '<div class="empty">Aucune donnée.</div>') + '</div>';
 }
 function exportPay() {
-  const ids = visIds(), rows = [['Client', 'ODP', 'Campagne', 'Facture', 'Date', 'HT', 'TTC', 'Espèces', 'Chq', 'Virmt', 'Prélvt', 'Reste', 'Comm. acquise', 'Comm. versée']];
-  db.invoices.filter(i => ids.has(i.contractId)).forEach(i => { const c = contractOf(i.contractId), cp = db.campaigns.find(x => x.id === i.campaignId); rows.push([c.client, c.odp, cp ? cp.label : c.label, i.invoiceNo, i.invoiceDate, i.amountHT, invTTC(i), ...MODES.map(m => invByMode(i, m.v)), invReste(i), commAcquired(i), commPaid(i)]); });
+  const ids = visIds(), rows = [['Client', 'ODP', 'Campagne', 'Facture', 'Date', 'HT diffusion', 'HT création', 'TTC', 'Espèces', 'Chq', 'Virmt', 'Prélvt', 'Reste', 'Comm. acquise', 'Comm. versée']];
+  db.invoices.filter(i => ids.has(i.contractId)).forEach(i => { const c = contractOf(i.contractId), cp = db.campaigns.find(x => x.id === i.campaignId); rows.push([c.client, c.odp, cp ? cp.label : c.label, i.invoiceNo, i.invoiceDate, i.amountHT, invCreationHT(i), invTTC(i), ...MODES.map(m => invByMode(i, m.v)), invReste(i), commAcquired(i), commPaid(i)]); });
   csv('encaissements.csv', rows);
 }
 
