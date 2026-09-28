@@ -402,18 +402,7 @@ const commPaid = i => round2(sum(i.commPaid || [], p => p.amount));
 const commDue = i => round2(commAcquired(i) - commPaid(i));
 
 /* ---- Diffusion : répartition d'une campagne au prorata des jours ---- */
-function allocByMonth(camp, field = 'amountHT') {
-  const out = {};
-  if (!camp.start || !camp.end || camp.end < camp.start) return out;
-  const s = new Date(camp.start + 'T00:00:00'), e = new Date(camp.end + 'T00:00:00');
-  const days = Math.round((e - s) / 864e5) + 1, per = (+camp[field] || 0) / days;
-  for (let i = 0; i < days; i++) {
-    const d = new Date(s); d.setDate(s.getDate() + i);
-    const k = d.getFullYear() + '-' + p2(d.getMonth() + 1);
-    out[k] = (out[k] || 0) + per;
-  }
-  return out;
-}
+/* allocByMonth est désormais défini dans p2e.js (grille de diffusion) */
 
 /* ---- CA SIGNÉ (tableau « CA signé par mois et par année ») ---- */
 function caSigneYear(y) {
@@ -1036,6 +1025,87 @@ function delTariff(id) { const t = tariffOf(id); if (!t || !isAdmin() || !confir
 
 
 /* ==========================================================================
+   GRILLE DE DIFFUSION : répartition réelle mois par mois d'une campagne
+   Le CA diffusé se répartit désormais au prorata des spots réellement
+   diffusés chaque mois (saisis dans la grille), et non plus au prorata
+   théorique des jours. Tant qu'un mois n'a pas été saisi, une estimation
+   par jours (comme avant) sert de valeur par défaut, modifiable à tout
+   moment par la gestion — au fil de la diffusion réelle.
+   ========================================================================== */
+function monthsTouched(camp) {
+  if (!camp.start || !camp.end || camp.end < camp.start) return [];
+  const s = new Date(camp.start + 'T00:00:00'), e = new Date(camp.end + 'T00:00:00');
+  const out = []; const d = new Date(s.getFullYear(), s.getMonth(), 1);
+  while (d <= e) { out.push(d.getFullYear() + '-' + p2(d.getMonth() + 1)); d.setMonth(d.getMonth() + 1); }
+  return out;
+}
+function daysInCampMonth(camp, ym) {
+  const s = new Date(camp.start + 'T00:00:00'), e = new Date(camp.end + 'T00:00:00');
+  const y = +ym.slice(0, 4), m = +ym.slice(5, 7);
+  const ms = new Date(y, m - 1, 1), me = new Date(y, m, 0);
+  const from = s > ms ? s : ms, to = e < me ? e : me;
+  return Math.max(0, Math.round((to - from) / 864e5) + 1);
+}
+/* Estimation par défaut (avant toute saisie manuelle) : prorata des jours */
+function estSpotsForMonth(camp, ym) {
+  const months = monthsTouched(camp); if (!months.length) return 0;
+  const totalDays = sum(months, x => daysInCampMonth(camp, x)); if (!totalDays) return 0;
+  return (num(camp.spots) || 0) * daysInCampMonth(camp, ym) / totalDays;
+}
+const gridManual = (camp, ym) => !!(camp.grid && camp.grid[ym] !== undefined && camp.grid[ym] !== null && camp.grid[ym] !== '');
+const gridSpots = (camp, ym) => gridManual(camp, ym) ? num(camp.grid[ym]) : estSpotsForMonth(camp, ym);
+/* Répartition du montant HT et des spots, mois par mois, au prorata de ce qui a été (ou est estimé) diffusé */
+function allocByMonth(camp, field = 'amountHT') {
+  const months = monthsTouched(camp), out = {};
+  if (!months.length) return out;
+  const spotsByM = {}; months.forEach(ym => { spotsByM[ym] = gridSpots(camp, ym); });
+  if (field === 'spots') { months.forEach(ym => { out[ym] = spotsByM[ym]; }); return out; }
+  const totalSpots = sum(months, ym => spotsByM[ym]);
+  if (totalSpots > 0.0001) {
+    months.forEach(ym => { out[ym] = camp.amountHT * spotsByM[ym] / totalSpots; });
+  } else {   // pas de notion de spots sur cette campagne : répartition par jours
+    const totalDays = sum(months, ym => daysInCampMonth(camp, ym));
+    months.forEach(ym => { out[ym] = totalDays ? camp.amountHT * daysInCampMonth(camp, ym) / totalDays : 0; });
+  }
+  return out;
+}
+function setGridSpots(id, ym, v) {
+  const cp = db.campaigns.find(x => x.id === id); if (!cp || !isMgr()) return;
+  cp.grid = cp.grid || {};
+  if (v === '' || v === null) delete cp.grid[ym];
+  else { const n = Math.max(0, Math.round(num(v))); if (!(n >= 0)) return; cp.grid[ym] = n; }
+  const c = contractOf(cp.contractId);
+  audit('Grille de diffusion', 'Campagne', id, (c || {}).odp + ' · ' + cp.label + ' · ' + ym + ' : ' + (v === '' ? 'estimation par jours' : cp.grid[ym] + ' spot(s) réels'));
+  commit(); if (window.drawGrid) window.drawGrid();
+}
+function resetGrid(id) {
+  const cp = db.campaigns.find(x => x.id === id); if (!cp || !isMgr() || !confirm('Réinitialiser la grille de diffusion de cette campagne ? Elle repassera en estimation par jours.')) return;
+  delete cp.grid; audit('Grille de diffusion', 'Campagne', id, 'réinitialisée'); commit(); if (window.drawGrid) window.drawGrid();
+}
+function gridForm(id) {
+  const cp = db.campaigns.find(x => x.id === id); if (!cp) return;
+  const c = contractOf(cp.contractId), mgr = isMgr();
+  const h = openModal({ title: 'Grille de diffusion', wide: true, body: '', buttons: [{ label: 'Fermer', onClick: (e, close) => close() }] });
+  const draw = () => {
+    const months = monthsTouched(cp), amt = allocByMonth(cp);
+    const rows = months.map(ym => {
+      const manual = gridManual(cp, ym), v = gridSpots(cp, ym), est = estSpotsForMonth(cp, ym);
+      const inp = mgr ? '<input class="input is-small" style="width:100px" type="number" min="0" step="1" value="' + (manual ? Math.round(v) : '') + '" placeholder="' + Math.round(est) + '" onchange="setGridSpots(\'' + cp.id + '\',\'' + ym + '\',this.value)">'
+        : (manual ? kInt(v) : kInt(Math.round(est)) + ' (estimé)');
+      return '<tr><td><b>' + ymLabel(ym) + '</b></td><td class="num">' + inp + '</td><td class="num">' + eur(amt[ym] || 0) + '</td><td>' + (manual ? '<span class="tag o25">saisi</span>' : '<span class="muted">estimation par jours</span>') + '</td></tr>';
+    }).join('');
+    const total = sum(months, ym => amt[ym] || 0), hasManual = cp.grid && Object.keys(cp.grid).length;
+    $('.modal-card-body', h.el).innerHTML = '<p class="mb-3">' + esc(c.client) + ' · ' + esc(cp.label) + ' · ' + eur(cp.amountHT) + ' HT' + (cp.spots ? ' · ' + kInt(cp.spots) + ' spot(s) prévu(s) au total' : '') + '</p>' +
+      (mgr ? '<p class="help mb-3">Indiquez, mois par mois, le nombre de spots réellement diffusés. Le montant HT du mois est recalculé au prorata. Un mois non saisi reste une estimation par jours, modifiable à tout moment.</p>' : '') +
+      '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>Mois</th><th class="num">Spots</th><th class="num">Montant HT</th><th>Origine</th></tr></thead><tbody>' + rows + '</tbody>' +
+      '<tfoot><tr><td>Total</td><td></td><td class="num"><b>' + eur(total) + '</b></td><td></td></tr></tfoot></table></div>' +
+      (mgr && hasManual ? '<button type="button" class="button is-small mt-3" onclick="resetGrid(\'' + cp.id + '\')">Réinitialiser toute la grille (estimation par jours)</button>' : '');
+  };
+  window.drawGrid = draw; draw();
+}
+
+
+/* ==========================================================================
    5. ÉTAT & ROUTAGE
    ========================================================================== */
 let PAGE = 'accueil';
@@ -1207,7 +1277,7 @@ function campForm(cid, id) {
   const body = '<form onsubmit="return false">' + cols(
     fld('Campagne / libellé', 'label', cp ? cp.label : c.label, { req: true }),
     fld('Montant HT alloué (€)', 'amountHT', cp ? cp.amountHT : Math.max(left, 0), { req: true, type: 'number', step: '0.01', help: 'Reste à allouer sur le contrat : ' + eur(left) }),
-    fld('Nombre de spots (total)', 'spots', cp && cp.spots ? cp.spots : '', { type: 'number', step: '1', help: 'Optionnel. Réparti au prorata des jours de diffusion pour les stats par année.' }),
+    fld('Nombre de spots (total prévu)', 'spots', cp && cp.spots ? cp.spots : '', { type: 'number', step: '1', help: 'Indicatif. La répartition réelle mois par mois se règle ensuite dans la grille de diffusion, depuis la fiche du contrat ou la page Campagnes.' }),
     fld('Début de diffusion', 'start', cp ? cp.start : '', { type: 'date', req: true }),
     fld('Fin de diffusion', 'end', cp ? cp.end : '', { type: 'date', req: true }),
     fld('Statut antenne', 'antenne', cp ? cp.antenne : 'none', { options: isSigned(c) ? ANTENNE : ANTENNE.slice(0, 1), help: isSigned(c) ? '' : 'Disponible après signature du contrat.' })) + (isComm(c) ? '' : calcHtml()) + '</form>';
@@ -1413,7 +1483,7 @@ function renderContractModal(m) {
   const campSum = round2(sum(camps, x => x.amountHT)), campDiff = round2(campSum - c.amountHT);
   const invSum = round2(sum(invs, x => x.amountHT));
   const campRows = camps.map(x => '<tr><td>' + esc(x.label) + '</td><td>' + fdate(x.start) + ' → ' + fdate(x.end) + '</td><td class="num">' + eur(x.amountHT) + '</td><td class="num">' + (x.spots ? kInt(x.spots) : '—') + '</td><td class="' + ANT_CLS[x.antenne] + '">' + (ANTENNE.find(a => a.v === x.antenne).l) + '</td>' +
-    '<td class="num">' + (mgr ? '<button class="button is-small is-light-orange" onclick="campForm(\'' + c.id + '\',\'' + x.id + '\')">Modifier</button> <button class="button is-small" onclick="delCampaign(\'' + x.id + '\')">✕</button>' : '') + '</td></tr>').join('');
+    '<td class="num">' + (mgr ? '<button class="button is-small" onclick="gridForm(\'' + x.id + '\')">Grille</button> <button class="button is-small is-light-orange" onclick="campForm(\'' + c.id + '\',\'' + x.id + '\')">Modifier</button> <button class="button is-small" onclick="delCampaign(\'' + x.id + '\')">✕</button>' : '<button class="button is-small" onclick="gridForm(\'' + x.id + '\')">Grille</button>') + '</td></tr>').join('');
   const bkRows = bks.map(x => '<tr><td>' + esc(x.emission) + '</td><td>' + esc(x.slot) + '</td><td>' + fdate(x.start) + ' → ' + fdate(x.end) + '</td><td>' + (x.status === 'confirme' ? '<span class="tag ok">Confirmée</span>' : '<span class="tag o25">Réservée</span>') + '</td>' +
     '<td class="num">' + (mgr ? '<button class="button is-small is-light-orange" onclick="bookForm(\'' + c.id + '\',\'' + x.id + '\')">Modifier</button> <button class="button is-small" onclick="delBooking(\'' + x.id + '\')">✕</button>' : '') + '</td></tr>').join('');
   const invRows = invs.map(i => { const s = invStatus(i); return '<tr><td>' + (i.invoiceNo ? esc(i.invoiceNo) : '<span class="muted">planifiée</span>') + '</td><td>' + fdate(i.invoiceDate) + '</td><td class="num">' + eur(i.amountHT) + '</td><td class="num">' + eur(invTTC(i)) + '</td><td class="num">' + eur(invPaid(i)) + '</td><td class="num">' + eur(invReste(i)) + '</td><td><span class="tag ' + s.cls + '">' + s.l + '</span></td>' +
@@ -1492,7 +1562,10 @@ function vCampaigns() {
     const c = contractOf(x.contractId), part = allocByMonth(x)[ym] || 0, sp = allocByMonth(x, 'spots')[ym] || 0, ok = isSigned(c), ong = x.antenne !== 'none' && x.start <= t && x.end >= t;
     const sel = mgr && ok ? '<div class="select is-small"><select class="' + ANT_CLS[x.antenne] + '" onchange="setAntenne(\'' + x.id + '\',this.value)">' + opts(ANTENNE, x.antenne) + '</select></div>' : '<span class="' + ANT_CLS[x.antenne] + '">' + ANTENNE.find(a => a.v === x.antenne).l + '</span>';
     const chk = x.antenne === 'none' ? '<span class="muted">—</span>' : (x.lastCheck ? '<span class="' + (stale(x) ? 'aq-sent' : '') + '">' + fdate(x.lastCheck) + '</span>' : (ong ? '<span class="aq-sent">jamais</span>' : '<span class="muted">—</span>')) + (mgr && ong ? ' <button class="button is-small is-light-orange" onclick="setChecked(\'' + x.id + '\')" title="Marquer vérifié auprès de ' + esc(antName()) + '">✓</button>' : '');
-    return '<tr><td><a onclick="openContract(\'' + c.id + '\')"><b>' + esc(c.odp) + '</b></a></td><td>' + esc(c.client) + ' ' + STATUS_TAG(c) + '</td><td>' + esc(x.label) + ' ' + (c.type === 'publicite' ? '' : typeTag(c)) + '</td><td>' + fdate(x.start) + ' → ' + fdate(x.end) + '</td><td class="num">' + (isComm(c) ? '<span class="muted">—</span>' : eur(x.amountHT)) + '</td><td class="num">' + (isComm(c) ? '<span class="muted">—</span>' : eur(part)) + '</td><td class="num">' + (sp ? kInt(sp) : '—') + '</td><td>' + sel + '</td><td>' + chk + '</td><td class="muted">' + (x.confirmedDate ? 'conf. ' + fdate(x.confirmedDate) : x.sentDate ? 'env. ' + fdate(x.sentDate) : '') + '</td></tr>';
+    const manual = gridManual(x, ym);
+    const spCell = mgr ? '<input class="input is-small" style="width:76px" type="number" min="0" step="1" value="' + (manual ? Math.round(sp) : '') + '" placeholder="' + Math.round(estSpotsForMonth(x, ym)) + '" title="Spots réellement diffusés ce mois-ci" onchange="setGridSpots(\'' + x.id + '\',\'' + ym + '\',this.value)">'
+      : (sp ? (manual ? kInt(sp) : kInt(sp) + ' (est.)') : '—');
+    return '<tr><td><a onclick="openContract(\'' + c.id + '\')"><b>' + esc(c.odp) + '</b></a></td><td>' + esc(c.client) + ' ' + STATUS_TAG(c) + '</td><td>' + esc(x.label) + ' ' + (c.type === 'publicite' ? '' : typeTag(c)) + '</td><td>' + fdate(x.start) + ' → ' + fdate(x.end) + '</td><td class="num">' + (isComm(c) ? '<span class="muted">—</span>' : eur(x.amountHT)) + '</td><td class="num">' + (isComm(c) ? '<span class="muted">—</span>' : eur(part)) + '</td><td class="num">' + spCell + '</td><td>' + sel + '</td><td>' + chk + '</td><td class="muted">' + (x.confirmedDate ? 'conf. ' + fdate(x.confirmedDate) : x.sentDate ? 'env. ' + fdate(x.sentDate) : '') + '</td><td class="num"><button class="button is-small" onclick="gridForm(\'' + x.id + '\')" title="Grille de diffusion complète">Grille</button></td></tr>';
   }).join('');
   const billed = list.filter(x => isCA(contractOf(x.contractId)));
   const bks = db.bookings.filter(b => ids.has(b.contractId) && b.start <= last && b.end >= first).sort((a, b) => a.emission.localeCompare(b.emission));
@@ -1505,8 +1578,8 @@ function vCampaigns() {
   return '<div class="box"><div class="box-h"><div class="mnav"><button class="button" onclick="ST.cm=addMonths(ST.cm,-1);renderAll()">◀</button><div class="ml">' + ymLabel(ym) + '</div><button class="button" onclick="ST.cm=addMonths(ST.cm,1);renderAll()">▶</button><button class="button is-light-orange" onclick="ST.cm=today().slice(0,7);renderAll()">Aujourd\'hui</button></div>' +
     '<span class="sub">Légende antenne : <span class="aq-none">non placée</span> · <span class="aq-sent">envoyée (rouge)</span> · <span class="aq-conf">confirmée (rouge gras)</span></span></div>' +
     (mgr && ongoingN ? '<div class="bar"><span class="sub">Vérification auprès de <b>' + esc(antName()) + '</b> : ' + ongoingN + ' campagne(s) en cours' + (staleN ? ' · <b style="color:var(--danger)">' + staleN + ' à vérifier</b>' : ' · à jour') + '</span> <button class="button is-small is-light-orange" onclick="checkAllOngoing()">✓ Tout marquer vérifié aujourd\'hui</button></div>' : '') +
-    (list.length ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>ODP</th><th>Client</th><th>Campagne</th><th>Période</th><th class="num">HT total</th><th class="num">HT du mois</th><th class="num">Spots du mois</th><th>Statut antenne</th><th>Vérifié le</th><th></th></tr></thead><tbody>' + rows + '</tbody>' +
-      '<tfoot><tr><td colspan="5">Diffusé sur le mois (prorata jours, hors communication)</td><td class="num">' + eur(sum(billed, x => allocByMonth(x)[ym] || 0)) + '</td><td class="num">' + kInt(sum(list, x => allocByMonth(x, 'spots')[ym] || 0)) + '</td><td colspan="3"></td></tr></tfoot></table></div>' : '<div class="empty">Aucune campagne diffusée en ' + ymLabel(ym) + '.</div>') + '</div>' +
+    (list.length ? '<div class="tw"><table class="table is-fullwidth"><thead><tr><th>ODP</th><th>Client</th><th>Campagne</th><th>Période</th><th class="num">HT total</th><th class="num">HT du mois</th><th class="num">Spots du mois</th><th>Statut antenne</th><th>Vérifié le</th><th></th><th></th></tr></thead><tbody>' + rows + '</tbody>' +
+      '<tfoot><tr><td colspan="5">Diffusé sur le mois (grille de diffusion, hors communication)</td><td class="num">' + eur(sum(billed, x => allocByMonth(x)[ym] || 0)) + '</td><td class="num">' + kInt(sum(list, x => allocByMonth(x, 'spots')[ym] || 0)) + '</td><td colspan="4"></td></tr></tfoot></table></div>' : '<div class="empty">Aucune campagne diffusée en ' + ymLabel(ym) + '.</div>') + '</div>' +
     '<div class="grid2"><div class="box"><div class="box-h"><h2>Campagnes restantes</h2><span class="sub">Reste à diffuser par client (contrats signés)</span></div>' +
     (restRows ? '<div class="tw"><table class="table is-fullwidth is-hoverable"><thead><tr><th>Client</th><th class="num">Contrats</th><th class="num">Reste à diffuser HT</th><th>Jusqu\'au</th></tr></thead><tbody>' + restRows + '</tbody></table></div>' : '<div class="empty">Tout est diffusé.</div>') + '</div>' +
     '<div class="box"><div class="box-h"><h2>Émissions sponsorisées · ' + ymLabel(ym) + '</h2></div>' +
