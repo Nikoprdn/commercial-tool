@@ -301,7 +301,7 @@ let meId = 'u1';
 try { meId = localStorage.getItem('commercial_tool_me') || 'u1'; } catch (e) { /* ignore */ }
 
 /* ---------- Profils & droits ---------- */
-const ROLES = { admin: 'Administrateur', gestion: 'Gestion', commercial: 'Commercial' };
+const ROLES = { admin: 'Administrateur', gestion: 'Comptabilité', commercial: 'Commercial' };
 const me = () => db.users.find(u => u.id === meId) || db.users[0];
 const isAdmin = () => me().role === 'admin';
 const isMgr = () => me().role !== 'commercial';          // admin + gestion
@@ -1526,7 +1526,8 @@ function vHome() {
   k += kpi('Reste à encaisser (TTC)', eur(reste), late.length + ' en retard · ' + toRelance.length + ' à relancer', late.length ? 'danger' : '') + kpi(mgr ? 'Commissions à verser' : 'Mes commissions à recevoir', eur(comm), 'HT, acquises non versées');
   const recent = [...vis].sort((a, b) => b.signedDate.localeCompare(a.signedDate) || b.odp.localeCompare(a.odp)).slice(0, 6);
   const todo = vis.filter(c => !isLost(c) && progressOf(c).pct < 100).length;
-  return '<div class="box-h"><h2 style="font-family:\'Barlow Condensed\';font-size:30px;font-weight:800;text-transform:uppercase">Tableau de bord</h2><button class="button is-primary" onclick="contractForm()">+ Nouveau contrat</button></div>' +
+  const dashSuffix = me().role === 'commercial' ? ' - Commercial' : me().role === 'gestion' ? ' - Comptabilité' : '';
+  return '<div class="box-h"><h2 style="font-family:\'Barlow Condensed\';font-size:30px;font-weight:800;text-transform:uppercase">Tableau de bord' + dashSuffix + '</h2><button class="button is-primary" onclick="contractForm()">+ Nouveau contrat</button></div>' +
     '<div class="kpis">' + k + '</div>' +
     (!db.contracts.length ? '<div class="box"><div class="empty">Aucun contrat pour l\'instant.<br><br><button class="button is-primary" onclick="contractForm()">Saisir le premier contrat</button> ' + (isAdmin() ? '<button class="button is-light-orange" onclick="loadDemo()">Charger des données de démonstration</button>' : '') + '</div></div>' :
       '<div class="grid2"><div class="box"><div class="box-h"><h2>À traiter</h2><a onclick="go(\'alertes\')">Tout voir (' + al.length + ')</a></div>' + (al.length ? al.slice(0, 7).map(alertHtml).join('') : '<div class="empty">Rien à signaler ✅</div>') + '</div>' +
@@ -1747,7 +1748,7 @@ function openSettings() {
       db.sellers.map(s => '<tr><td><input class="input is-small" value="' + esc(s.name) + '" onchange="setSeller(\'' + s.id + '\',\'name\',this.value)"></td><td><input class="input is-small" type="number" step="0.1" value="' + s.rate + '" onchange="setSeller(\'' + s.id + '\',\'rate\',this.value)"></td><td><label class="checkbox"><input type="checkbox" ' + (s.direct ? 'checked' : '') + ' onchange="setSeller(\'' + s.id + '\',\'direct\',this.checked)"> direct</label></td><td class="num"><button class="button is-small" onclick="delSeller(\'' + s.id + '\')">✕</button></td></tr>').join('') + '</tbody></table></div>' +
       '<div class="box"><div class="box-h"><h2>Utilisateurs</h2><button class="button is-small is-primary" id="addUser">+ Ajouter</button></div><table class="table is-fullwidth"><thead><tr><th>Nom</th><th>Rôle</th><th>Lié au commercial</th><th></th></tr></thead><tbody>' +
       db.users.map(u => '<tr><td><input class="input is-small" value="' + esc(u.name) + '" onchange="setUser(\'' + u.id + '\',\'name\',this.value)"></td><td><div class="select is-small"><select onchange="setUser(\'' + u.id + '\',\'role\',this.value)">' + opts(Object.keys(ROLES).map(k => ({ v: k, l: ROLES[k] })), u.role) + '</select></div></td><td><div class="select is-small"><select onchange="setUser(\'' + u.id + '\',\'sellerId\',this.value)">' + opts([{ v: '', l: '—' }].concat(db.sellers.map(s => ({ v: s.id, l: s.name }))), u.sellerId) + '</select></div></td><td class="num"><button class="button is-small" onclick="delUser(\'' + u.id + '\')">✕</button></td></tr>').join('') + '</tbody></table>' +
-      '<p class="help">Administrateur : tout. Gestion : tout sauf paramètres et suppressions. Commercial : uniquement ses contrats, campagnes et commissions (lecture).</p></div>' +
+      '<p class="help">Administrateur : tout. Comptabilité : tout sauf paramètres et suppressions. Commercial : uniquement ses contrats, campagnes et commissions (lecture).</p></div>' +
       tarifSettingsBox() + dbxSettingsBox() + '<div class="box"><div class="box-h"><h2>Données</h2></div><div class="bar"><button class="button is-light-orange" onclick="exportJSON()">Exporter (JSON)</button><label class="button is-light-orange">Importer<input type="file" accept=".json" hidden onchange="importJSON(this.files[0])"></label><button class="button is-light-orange" onclick="loadDemo()">Charger des données de démo</button><button class="button is-danger is-light" onclick="resetAll()">Tout effacer</button></div>' +
       '<p class="help">Les données sont enregistrées dans ce navigateur. Faites des exports réguliers en attendant le branchement sur une base partagée.</p></div>' +
       '<div class="box"><div class="box-h"><h2>Journal d\'audit</h2><span class="sub">50 dernières actions</span></div><div class="tw" style="max-height:260px;overflow:auto"><table class="table is-fullwidth is-narrow"><tbody>' +
