@@ -71,7 +71,8 @@ body{color:var(--ink);min-height:100vh;font-family:'Inter',sans-serif;font-size:
 /* ---- Connexion ---- */
 .login-screen{position:fixed;inset:0;z-index:9999;background:radial-gradient(circle at 30% 20%,var(--orange-25),var(--page-bg) 65%);display:flex;align-items:center;justify-content:center;padding:24px;}
 .login-card{background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:0 16px 48px rgba(51,41,26,.14);padding:36px 32px;width:100%;max-width:380px;}
-.login-logo{display:flex;align-items:center;justify-content:center;margin-bottom:10px;}
+.login-logo{display:flex;align-items:center;justify-content:center;margin-bottom:14px;}
+.login-logo img{width:100%;max-width:270px;height:auto;display:block;}
 .login-mark{width:46px;height:46px;border-radius:12px;background:var(--orange);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:24px;}
 .login-title{font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:800;text-align:center;text-transform:uppercase;letter-spacing:.03em;color:var(--ink);margin:10px 0 2px;}
 .login-sub{text-align:center;color:var(--ink-soft);font-size:12.5px;margin-bottom:22px;}
@@ -269,7 +270,6 @@ body{color:var(--ink);min-height:100vh;font-family:'Inter',sans-serif;font-size:
 </div>
 <!-- /#appRoot -->
 <script>
-const CT_DEMO = true;
 /**
  * @licstart The following is the entire license notice for the
  * JavaScript code in this page
@@ -2218,7 +2218,7 @@ function resetAll() { if (!confirm('Effacer TOUTES les données ? Pensez à expo
 const LG = { uid: null, err: '' };
 const loginInitial = name => esc((name || '?').trim().slice(0, 1).toUpperCase());
 function loginShell(inner) {
-  return '<div class="login-card"><div class="login-logo"><div class="login-mark">M</div></div><div class="login-title">commercial tool</div><div class="login-sub">Connexion sécurisée — Radio Monaco</div>' + (window.DEMO_HINT || '') + inner + '</div>';
+  return '<div class="login-card"><div class="login-logo"><img src="' + (($('.hdr-brand img') || {}).src || '') + '" alt="Commercial Tool"></div><div class="login-sub">Connexion sécurisée — Radio Monaco</div>' + (window.DEMO_HINT || '') + inner + '</div>';
 }
 function renderLogin() {
   const el = $('#loginScreen'); if (!el) return;
@@ -2298,74 +2298,5 @@ tick(); setInterval(tick, 1000);
 let rsT, lastW = window.innerWidth, lastH = window.innerHeight;
 window.addEventListener('resize', () => { clearTimeout(rsT); rsT = setTimeout(() => { if (Math.abs(window.innerWidth - lastW) > 8 || Math.abs(window.innerHeight - lastH) > 8) { lastW = window.innerWidth; lastH = window.innerHeight; renderAll(); } }, 200); });
 if (loadSession()) { authed = true; $('#loginScreen').style.display = 'none'; $('#appRoot').style.display = ''; renderAll(); } else { renderLogin(); }
-
-
-/* ==========================================================================
-   DONNÉES DE DÉMONSTRATION — incluses dans la version démo et le build de test, jamais dans la version de production
-   ========================================================================== */
-function loadDemo() {
-  if (db.odps.length && !confirm('Ajouter des données de démonstration aux données existantes ?')) return;
-  const t = today();
-  /* st : 'signe' (défaut) ou 'proposition' ; pour une proposition, la date d'ODP = date de référence */
-  const mk = (client, sellerId, ago, type, label, amt, filed, st, tasks) => {
-    const d = addDays(t, -ago), status = st || 'signe', c = { id: uid(), odp: assignOdp(d, type), client, sellerId, status, proposalDate: type === 'communication' ? '' : addDays(d, status === 'signe' ? -4 : 0), signedDate: d, type, amountHT: amt, driveUrl: '', filed: !!filed, tasks: tasks || {}, notes: '', createdAt: new Date().toISOString(), createdBy: 'Démo' };
-    db.odps.push(c); return c;
-  };
-  const done = (...k) => Object.fromEntries(k.map(x => [x, { done: true, date: addDays(t, -10), by: 'Démo' }]));
-  const cp = (c, label, s, e, a, ant, spots, chk) => { const x = { id: uid(), odpId: c.id, label, start: s, end: e, amountHT: a, spots: spots || 0, antenne: ant, sentDate: ant !== 'none' ? addDays(t, -5) : '', confirmedDate: ant === 'confirmed' ? addDays(t, -3) : '', lastCheck: chk || '' }; db.campaigns.push(x); return x; };
-  const iv = (c, camp, no, ago, ht, rate, pays, rem) => db.invoices.push({ id: uid(), odpId: c.id, campaignId: camp ? camp.id : '', invoiceNo: no, invoiceDate: addDays(t, -ago), amountHT: ht, tva: 20, commRate: rate, payments: (pays || []).map(p => ({ id: uid(), date: addDays(t, -p[0]), mode: p[1], amount: p[2], ref: '' })), commPaid: [], reminders: (rem || []).map(x => ({ id: uid(), date: addDays(t, -x[0]), mode: x[1], note: x[2], next: x[3] ? addDays(t, -x[3]) : '', by: 'Démo' })), note: '' });
-  if (!tariffs().some(t => t.name.startsWith('[DÉMO]'))) tariffs().push({ id: uid(), name: '[DÉMO] Spot 30 s', kind: 'spot', unit: 'spot', price: 45, tiers: '100:40; 300:35' }, { id: uid(), name: '[DÉMO] Sponsoring émission', kind: 'sponsoring', unit: 'mois', price: 1200, tiers: '6:1140; 12:1080' }, { id: uid(), name: '[DÉMO] Pack événement', kind: 'autre', unit: 'forfait', price: 2500, tiers: '' });
-  const y = +t.slice(0, 4);
-  const a = mk('[DÉMO] Boulangerie Azur', 's2', 40, 'publicite', 'Campagne spots printemps', 6000, true, 'signe', done('clientdocs', 'spot'));
-  const ca = cp(a, 'Campagne spots printemps', addDays(t, -30), addDays(t, 60), 6000, 'confirmed', 420, addDays(t, -2)); iv(a, ca, 'DEMO-001', 30, 6000, 10, [[10, 'VIRMT', 3600]]);
-  const b = mk('[DÉMO] Garage Riviera', 's1', 20, 'sponsoring', 'Sponsoring météo — année', 12000, true, 'signe', done('need', 'studio', 'spot', 'clientdocs'));
-  const cb = cp(b, 'Sponsoring météo — année', y + '-01-01', y + '-12-31', 12000, 'sent', 2600, addDays(t, -12)); iv(b, cb, 'DEMO-002', 15, 12000, 0, [[8, 'CHQ', 14400]]);
-  db.bookings.push({ id: uid(), odpId: b.id, emission: 'Météo du matin', slot: 'Lun–Ven 7h30', start: y + '-01-01', end: y + '-12-31', status: 'reserve' });
-  const c = mk('[DÉMO] Hôtel Beau Rivage', 's2', 5, 'publicite', 'Campagne fin de saison', 3000, false);
-  cp(c, 'Campagne fin de saison', addDays(t, 5), addDays(t, 35), 3000, 'none', 200);
-  const d = mk('[DÉMO] Opticien du Port', 's1', 65, 'publicite', 'Pack 2 mois', 2400, true);
-  const cd = cp(d, 'Pack 2 mois', addDays(t, -60), addDays(t, -1), 2400, 'confirmed', 360); iv(d, cd, 'DEMO-003', 55, 2400, 0, [[40, 'PRELVT', 2880]]);
-  /* Impayé avec historique de relances (client apporté par un commercial) */
-  const e = mk('[DÉMO] Bijouterie Casino', 's2', 90, 'publicite', 'Campagne Noël', 3500, true, 'signe', done('spot'));
-  const ce = cp(e, 'Campagne Noël', addDays(t, -80), addDays(t, -20), 3500, 'confirmed', 240); iv(e, ce, 'DEMO-004', 70, 3500, 10, [], [[30, 'Téléphone', 'Promet un virement sous 15 jours', 15], [9, 'E-mail', 'Sans réponse', 0]]);
-  /* Propositions : ODP créé, pas encore signé */
-  mk('[DÉMO] Agence Immobilière Monte-Carlo', 's1', 12, 'publicite', 'Proposition campagne été', 8000, false, 'proposition', done('need'));
-  mk('[DÉMO] Restaurant Le Quai', 's2', 3, 'publicite', 'Proposition spots week-end', 2200, false, 'proposition');
-  /* Communication Radio Monaco : suivie et placée, non facturée, hors CA */
-  const k = mk('[DÉMO] Mairie de Monaco', 's1', 8, 'communication', 'Campagne institutionnelle', 0, true, 'signe', done('spot'));
-  cp(k, 'Campagne institutionnelle', addDays(t, -7), addDays(t, 21), 0, 'confirmed', 180, addDays(t, -1));
-  /* Historique (année précédente et début d'année) pour visualiser les comparatifs */
-  [[400, '[DÉMO] Garage Riviera', 's1', 9000, 540], [380, '[DÉMO] Boulangerie Azur', 's2', 4800, 300], [350, '[DÉMO] Opticien du Port', 's1', 2400, 150], [330, '[DÉMO] Hôtel Beau Rivage', 's2', 3500, 210],
-   [300, '[DÉMO] Boulangerie Azur', 's2', 2000, 120], [270, '[DÉMO] Garage Riviera', 's1', 3000, 180], [240, '[DÉMO] Opticien du Port', 's1', 2800, 170], [200, '[DÉMO] Hôtel Beau Rivage', 's2', 4200, 250], [120, '[DÉMO] Boulangerie Azur', 's2', 3200, 190]].forEach((h, n) => {
-    const q = mk(h[1], h[2], h[0], 'publicite', 'Campagne ' + (n + 1), h[3], true), s = addDays(t, -h[0] + 10), en = addDays(s, 60), cc = cp(q, 'Campagne ' + (n + 1), s, en, h[3], 'confirmed', h[4]);
-    iv(q, cc, 'DEMO-H' + (n + 1), h[0] - 8, h[3], h[2] === 's2' ? 10 : 0, [[h[0] - 30, 'VIRMT', round2(h[3] * 1.2)]]);
-  });
-  audit('Démo', 'Données', '', 'Données de démonstration chargées'); commit(); toast('Données de démonstration chargées');
-  if (window.redrawSettings) window.redrawSettings();
-}
-
-
-/* ==========================================================================
-   VERSION DÉMO — démarrage : données fictives chargées automatiquement,
-   les 3 comptes s'ouvrent avec un mot de passe connu. Base séparée de la
-   vraie (voir STORE_NS) : rien de ce qui est fait ici ne touche la production.
-   ========================================================================== */
-const DEMO_PASS = 'demo2026';
-window.DEMO_HINT = '<p class="demo-hint">Version démo : mot de passe <b>' + DEMO_PASS + '</b> pour les 3 comptes</p>';
-(function demoStyle() {
-  const st = document.createElement('style');
-  st.textContent = '.demo-ribbon{position:fixed;left:16px;bottom:16px;z-index:10000;background:var(--orange-dark);color:#fff;font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:14px;letter-spacing:.06em;text-transform:uppercase;padding:6px 14px;border-radius:999px;box-shadow:0 4px 14px rgba(51,41,26,.25);pointer-events:none;}' +
-    '.demo-hint{text-align:center;font-size:12.5px;color:var(--orange-dark);background:var(--orange-25);border:1px solid var(--orange-50);border-radius:8px;padding:8px 10px;margin:-8px 0 18px;}';
-  document.head.appendChild(st);
-  const r = document.createElement('div'); r.className = 'demo-ribbon'; r.textContent = 'Version démo · données fictives';
-  document.body.appendChild(r);
-})();
-(async function demoBoot() {
-  if (!db.odps.length) loadDemo();
-  let changed = false;
-  for (const u of db.users) if (!u.passHash) { await setUserPassword(u, DEMO_PASS); changed = true; }
-  if (changed) Store.save();
-  if (!authed) renderLogin();
-})();
 
 </script></body></html>
